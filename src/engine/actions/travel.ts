@@ -35,38 +35,37 @@ export function createTravel(ctx: Ctx, hooks: TravelHooks) {
     if (state.state === "home") {
       state.target = target;
       state.state = "going";
-      setButton(target, true);
-      ctx.ui.setCaption([{ kind: "text", text: `Cap sur ${ctx.planets[target].name}.` }]);
+      setButton(true);
+      ctx.ui.setCaption([{ kind: "text", text: `Cap sur ${ctx.planet(target).name}.` }]);
       await ctx.anim.tween(GO, (k) => { state.k = k; });
       state.state = "there";
       hooks.arrived(target);
     } else if (state.state === "there") {
-      const t = state.target;
       state.state = "going";
       ctx.ui.setCaption(null);
       hooks.leaving();
       await ctx.anim.tween(BACK, (k) => { state.k = 1 - k; });
       state.state = "home";
-      setButton(t, false);
+      setButton(false);
     }
   }
-  function setButton(target: ProjectKey, on: boolean) {
-    const b = ctx.buttons["engage_" + target];
+  function setButton(on: boolean) {
+    const b = ctx.buttons["engage"];
     if (!b.kind) b.on = on;
   }
 
   /** à chaque image : l'extérieur pivote (le soleil avec), puis la planète approche */
   function update(dt: number) {
-    const tp = ctx.planets[state.target], ph = travelPhase(state.k);
+    const tp = ctx.planet(state.target), ph = travelPhase(state.k);
     ctx.space.quaternion.slerpQuaternions(Q_ID, tp.qAlign, ph.turn);
     for (const p of Object.values(ctx.planets)) {
-      if (p.key === state.target) p.mesh.position.lerpVectors(p.home, p.approachLocal, ph.move);
-      else p.mesh.position.copy(p.home);
+      if (p.key === state.target && state.k > 0) p.mesh.position.lerpVectors(p.home, p.approachLocal, ph.move);
+      else p.mesh.position.copy(p.home).add(p.offset);
       const sun = p.mesh.material.uniforms.sunDir.value as THREE.Vector3;
       sun.copy(SUN_DIR).applyQuaternion(ctx.space.quaternion);
       (p.shell.material.uniforms.sunDir.value as THREE.Vector3).copy(sun);
       // à l'arrivée, la surface défile sous le vaisseau
-      p.mesh.rotation.y += dt * (0.006 + (p.key === state.target ? 0.03 * ph.move : 0));
+      if (p.mesh.visible) p.mesh.rotation.y += dt * (0.006 + (p.key === state.target ? 0.03 * ph.move : 0));
     }
     ctx.sun.position.copy(CABIN_SUN).applyQuaternion(ctx.space.quaternion).multiplyScalar(4).add(SUN_AIM);
     state.thrust = state.state === "going" ? ph.thrust : 0;

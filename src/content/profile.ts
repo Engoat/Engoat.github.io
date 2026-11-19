@@ -27,13 +27,15 @@ export const SKILLS: Skill[] = [
 /* lignes courtes pour le ruban du dossier */
 export const SKILL_LINES = ["TypeScript · React · Vite", "Python · FastAPI · pandas", "Java · Spring Boot", "SQL · PostgreSQL", "Git"];
 
-export type ProjectKey = "nexus" | "crible";
+export type ProjectKey = "nexus" | "crible" | "alea";
 export interface Project {
   key: ProjectKey; name: string; text: string; slip: string; repo: string;
   /** bibliothèques réellement utilisées (package.json du projet) */
   stack: string[];
   /** couleur signature de la marque du projet */
   color: string;
+  /** la marque a-t-elle un logo (public/assets/projects/<clé>-icone.svg) ? */
+  icon: boolean;
   /** capture de l'application (public/assets/projects) et sa description */
   shot: { src: string; alt: string };
 }
@@ -47,6 +49,7 @@ export const PROJECTS: Project[] = [
     repo: `${GITHUB}/nexus`,
     stack: ["TypeScript", "React", "Vite"],
     color: "#6b2bd9",
+    icon: true,
     shot: { src: "nexus", alt: "Nexus : l'algorithme de Dijkstra en cours sur un graphe de cinq sommets, étape 7 sur 22, avec les invariants vérifiés à cette étape." },
   },
   {
@@ -57,16 +60,22 @@ export const PROJECTS: Project[] = [
     repo: `${GITHUB}/crible`,
     stack: ["TypeScript", "React", "Vite", "DuckDB-WASM", "SheetJS"],
     color: "#e8432a",
+    icon: true,
     shot: { src: "crible", alt: "Crible : tableau de bord sur titanic.csv (891 lignes) ; la règle « Age ≥ 0 et ≤ 60 » échoue sur 22 lignes, listées en dessous." },
   },
+  {
+    key: "alea",
+    name: "Aléa",
+    text: "Application mobile de hasard, écrite en React Native. Des dés pour les jeux de rôle, avec la notation complète (3d6+2, 4d6kh3, d6!) et la probabilité exacte de chaque résultat ; des tirages au sort (roue, cartes, équipes équilibrées, sans remise) que n'importe qui peut vérifier pour s'assurer qu'ils ne sont pas truqués.",
+    slip: "Application mobile : dés de jeu de rôle avec probabilité exacte, et tirages au sort vérifiables.",
+    repo: `${GITHUB}/alea`,
+    stack: ["TypeScript", "React Native", "Expo"],
+    // pas encore de couleur signature (séance logo à venir) : l'encre de l'application
+    color: "#1b1a17",
+    icon: false,
+    shot: { src: "alea", alt: "Aléa, trois écrans : le lancer 4d6kh3 avec ses dés, son total et sa loi de probabilité ; la roue d'un tirage au sort avec sa preuve ; la vérification d'un tirage." },
+  },
 ];
-
-/* projet en cours, affiché comme tel (exception voulue par Enzo, voir regles.md) */
-export const IN_PROGRESS = {
-  name: "Prêts entre amis et tontines",
-  text: "Application mobile Android. On enregistre un prêt fait à un ami, qui le valide de son côté : la dette est reconnue par les deux. Elle servira aussi à tenir les comptes d'une tontine.",
-  slip: "Application mobile : prêts entre amis validés par les deux, et comptes de tontine.",
-};
 
 /* « github.com/Engoat/nexus » : l'adresse sans le protocole, pour l'affichage */
 export const bare = (url: string) => url.replace(/^https?:\/\//, "");

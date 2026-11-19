@@ -1,8 +1,9 @@
 import type { CaptionItem, Ctx } from "../types";
-import type { ProjectKey } from "../../content/profile";
+import { PROJECTS, type ProjectKey } from "../../content/profile";
 import { createHud } from "./hud";
 import { createNexusDemo } from "./nexus";
 import { createCribleDemo } from "./crible";
+import { createAleaDemo } from "./alea";
 
 /** ce qu'une démo de projet doit fournir au metteur en scène */
 export interface DemoScript {
@@ -34,9 +35,10 @@ export function createDirector(ctx: Ctx, hooks: DirectorHooks) {
   const scripts: Record<ProjectKey, DemoScript> = {
     nexus: createNexusDemo(ctx, hud),
     crible: createCribleDemo(ctx, hud),
+    alea: createAleaDemo(ctx, hud),
   };
   const s = { target: "nexus" as ProjectKey, active: false, finished: false, token: 0 };
-  const name = (k: ProjectKey) => ctx.planets[k].name;
+  const name = (k: ProjectKey) => ctx.planet(k).name;
 
   /* La visite va au rythme du visiteur : rien n'avance seul. « Suivant », sous le texte
      de la tour, finit d'écrire la phrase puis passe à la suivante ; la barre du bas
@@ -83,7 +85,7 @@ export function createDirector(ctx: Ctx, hooks: DirectorHooks) {
     hud.state.title = name(s.target);
     hud.state.steps = 0;              // plus de compteur ni de « Suivant »
     hud.state.dirty = true;
-    const pretty = s.target === "nexus" ? "Nexus" : "Crible";
+    const pretty = PROJECTS.find((p) => p.key === s.target)!.name;
     void hud.say(`Atterrissage accordé. Bon séjour sur ${pretty}.`, false);
     caption(true);
   }

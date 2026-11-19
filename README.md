@@ -1,7 +1,10 @@
 # Enzo Dylan — portfolio
 
-Un cockpit de vaisseau en 3D, vu depuis le siège du pilote. Les projets sont des planètes : on y va en
-cliquant dessus ou sur le bouton ENGAGER, et une visite présente l'application. Le dossier et le contact
+Un cockpit de vaisseau en 3D, vu depuis le siège du pilote. Les projets sont des planètes, une seule à la fois
+dans le hublot : un écran de navigation, au centre de la planche, les liste (touches PROJET PRÉC. et
+SUIV., clic sur une ligne, molette ou flèches), puis ENGAGER emmène sur la planète, où une visite
+présente l'application. Les planètes se fabriquent à la demande : ajouter un projet ne ralentit pas
+le chargement. Le dossier et le contact
 sortent de l'imprimante de bord. Le bouton ÉJECTION ouvre un portfolio classique, sans la 3D (accessible aussi par l'adresse `#classique`).
 
 En ligne : https://engoat.github.io/
@@ -24,7 +27,7 @@ src/
     index.ts           assemble la scène, la boucle de rendu et les clics
     world/             l'espace et les planètes, la cabine, la planche, les mains, les matières usées
     actions/           appuyer sur un bouton, imprimer le ruban, voyager, la file des commandes
-    demo/              les visites de Nexus et de Crible, et l'affichage de la tour sur la vitre
+    demo/              les visites de chaque projet, et l'affichage de la tour sur la vitre
 tools/bake_wear.py     calcul des matières usées dans Blender
 tools/smooth_hands.py  lissage des modèles de main (subdivision, squelette conservé)
 public/assets/         polices, modèles de main, images

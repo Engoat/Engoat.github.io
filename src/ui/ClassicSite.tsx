@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { EMAIL, GITHUB, IN_PROGRESS, PERSON, PROJECTS, SKILLS, bare } from "../content/profile";
+import { EMAIL, GITHUB, PERSON, PROJECTS, SKILLS, bare } from "../content/profile";
 import { BACK, FRONT, SATELLITE, svgPath } from "./logo";
 
 /* Le portfolio classique : ce qui sort du cockpit au bouton ÉJECTION (ou de l'écran de
@@ -103,7 +103,7 @@ export function ClassicSite({ open, onClose, closeLabel }: Props) {
         {PROJECTS.map((p) => (
           <article key={p.key} className="site__project" style={{ "--brand": p.color } as React.CSSProperties}>
             <header className="site__project-head">
-              <img src={`${BASE}assets/projects/${p.key}-icone.svg`} alt="" width="44" height="44" />
+              {p.icon && <img src={`${BASE}assets/projects/${p.key}-icone.svg`} alt="" width="44" height="44" />}
               <h3>{p.name}</h3>
               <ul className="site__stack" aria-label="Technologies">
                 {p.stack.map((s) => <li key={s}>{s}</li>)}
@@ -122,11 +122,6 @@ export function ClassicSite({ open, onClose, closeLabel }: Props) {
             </div>
           </article>
         ))}
-        <aside className="site__wip" aria-labelledby="site-wip">
-          <p className="site__wip-tag">En cours</p>
-          <h3 id="site-wip">{IN_PROGRESS.name}</h3>
-          <p>{IN_PROGRESS.text}</p>
-        </aside>
       </section>
 
       <section id="competences" className="site__section site__section--tint" aria-labelledby="site-competences">

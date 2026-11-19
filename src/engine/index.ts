@@ -16,6 +16,7 @@ import { buildDetails } from "./world/details";
 import { createSlip } from "./actions/slip";
 import { createTravel } from "./actions/travel";
 import { createCommands } from "./actions/commands";
+import { createNav } from "./actions/nav";
 import { createDirector } from "./demo/director";
 import { createHead } from "./camera";
 
@@ -91,6 +92,8 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
   buildPanel(ctx);
   buildConsoles(ctx);
   buildDetails(ctx);
+  await step(0.5, "Peinture de la planète");
+  const nav = createNav(ctx);
   await step(0.55, "Gants et combinaison");
   const [gR, gL] = await handsP;
   buildHands(ctx, gR, gL);
@@ -107,7 +110,8 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
     arrived: (t) => { void director.start(t); },
     leaving: () => director.stop(),
   });
-  commands = createCommands(ctx, slip, travel);
+  commands = createCommands(ctx, slip, travel, nav);
+  nav.setAuRepos(() => travel.state.state === "home");
   const head = createHead(ctx);
 
   /* --- clics : commandes du cockpit, ruban, ou planète vue par le hublot --- */
@@ -115,7 +119,6 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
   const caps: THREE.Object3D[] = Object.values(ctx.buttons).map((b) => b.cap);
   slip.mesh.userData.button = { key: "tear" };
   caps.push(slip.mesh);
-  const planetMeshes = Object.values(ctx.planets).map((p) => p.mesh);
   const blockers: THREE.Object3D[] = [];
   ctx.cockpit.traverse((o) => {
     if ((o as THREE.Mesh).isMesh && !o.userData.skip && o !== slip.mesh && o !== director.hud.mesh) blockers.push(o);
@@ -130,13 +133,18 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
     const hit = ray.intersectObjects(caps, false).find((h) => h.object.visible);
     return hit ? hit.object.userData.button.key : null;
   }
-  // une planète n'est cliquable qu'au repos, et si rien du cockpit ne la cache
+  // la planète choisie n'est cliquable qu'au repos, et si rien du cockpit ne la cache
   function pickPlanet(): ProjectKey | null {
-    if (travel.state.state !== "home") return null;
-    const hit = ray.intersectObjects(planetMeshes, false)[0];
+    if (travel.state.state !== "home" || nav.state.busy) return null;
+    const hit = ray.intersectObject(ctx.planet(nav.selected()).mesh, false)[0];
     if (!hit) return null;
     const wall = ray.intersectObjects(blockers, false)[0];
-    return wall && wall.distance < hit.distance ? null : hit.object.userData.planet;
+    return wall && wall.distance < hit.distance ? null : nav.selected();
+  }
+  // une ligne de l'écran de navigation
+  function pickRow(): number | null {
+    const hit = ray.intersectObject(ctx.navScreen.mesh, false)[0];
+    return hit?.uv ? nav.ligneAt(hit.uv) : null;
   }
   // « Suivant », dessiné sur la vitre sous le texte de la tour de contrôle
   function pickNext() {
@@ -144,24 +152,40 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
     const hit = ray.intersectObject(director.hud.mesh, false)[0];
     return !!hit?.uv && director.hud.hitsNext(hit.uv);
   }
-  const onMove = (e: PointerEvent) => { aim(e); canvas.classList.toggle("hot", pickNext() || !!pickButton() || !!pickPlanet()); };
+  const onMove = (e: PointerEvent) => { aim(e); canvas.classList.toggle("hot", pickNext() || !!pickButton() || !!pickPlanet() || pickRow() !== null); };
   const onClick = (e: MouseEvent) => {
     aim(e);
     if (pickNext()) { director.next(); return; }
+    const row = pickRow();
+    if (row !== null) { void nav.goTo(row); return; }
     const key = pickButton();
     if (key) { commands.act(key); return; }
-    const planet = pickPlanet();
-    if (planet) commands.act("engage_" + planet);
+    if (pickPlanet()) commands.act("engage");
   };
+  // la molette sur l'écran de navigation fait défiler les projets
+  const onWheel = (e: WheelEvent) => {
+    aim(e);
+    if (pickRow() === null && !ray.intersectObject(ctx.navScreen.mesh, false)[0]) return;
+    e.preventDefault();
+    void nav.step(e.deltaY > 0 ? 1 : -1);
+  };
+  canvas.addEventListener("wheel", onWheel, { passive: false });
   canvas.addEventListener("pointermove", onMove);
   canvas.addEventListener("click", onClick);
-  // au clavier : → ou Entrée font avancer la visite (sauf si un bouton de la page a le focus)
+  /* au clavier (sauf si un bouton de la page a le focus) : pendant une visite, → ou Entrée
+     font avancer la visite ; au repos, ← et → changent de projet et Entrée l'engage */
   const onKey = (e: KeyboardEvent) => {
-    if (!director.state.active || (e.key !== "ArrowRight" && e.key !== "Enter")) return;
     const el = document.activeElement;
     if (el && el !== document.body && el !== canvas) return;
-    e.preventDefault();
-    director.next();
+    if (director.state.active) {
+      if (e.key !== "ArrowRight" && e.key !== "Enter") return;
+      e.preventDefault();
+      director.next();
+      return;
+    }
+    if (e.key === "ArrowRight") { e.preventDefault(); commands.act("nav_next"); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); commands.act("nav_prev"); }
+    else if (e.key === "Enter") { e.preventDefault(); commands.act("engage"); }
   };
   addEventListener("keydown", onKey);
   const act = (key: string) => (key === "next" ? director.next() : commands.act(key));
@@ -215,7 +239,7 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
   ui.progress(1, "Prêt");
   raf = requestAnimationFrame(frame);
   window.__ready = true;
-  window.__dbg = { ctx, act, travel, director, boot: () => boot() };
+  window.__dbg = { ctx, act, travel, director, nav, boot: () => boot() };
   /* l'allumage part quand l'écran de chargement s'est ouvert sur le cockpit (l'interface
      appelle boot) ; s'il ne l'a pas fait au bout de 6 s, il part de lui-même */
   let booted = false;
@@ -234,6 +258,7 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
       clearTimeout(bootTimer);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("click", onClick);
+      canvas.removeEventListener("wheel", onWheel);
       removeEventListener("keydown", onKey);
       removeEventListener("resize", onResize);
       renderer.dispose();

@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import type { Ctx, PushButton, SwitchButton } from "../types";
 import { mat } from "../util/textures";
 import { shadowy, twoGroups } from "../util/geometry";
+import { NAV } from "./navscreen";
 
 export const PANEL_TILT = -0.62;
 
@@ -134,10 +135,13 @@ export function buildPanel(ctx: Ctx) {
     ctx.buttons[key] = b;
     return b;
   }
-  korry(panel, "dossier", -0.205, -0.155, ["DOSSIER"]);
-  korry(panel, "engage_nexus", -0.078, -0.155, ["ENGAGER", "NEXUS"], { w: 0.092, h: 0.072, striped: true });
-  korry(panel, "engage_crible", 0.078, -0.155, ["ENGAGER", "CRIBLE"], { w: 0.092, h: 0.072, striped: true });
-  korry(panel, "contact", 0.205, -0.155, ["CONTACT"]);
+  /* la rangée de commandes de navigation : choisir le projet (précédent, suivant) sur
+     l'écran, puis ENGAGER */
+  korry(panel, "dossier", -0.215, -0.155, ["DOSSIER"], { w: 0.076 });
+  korry(panel, "nav_prev", -0.122, -0.155, ["PROJET", "PRÉC."], { w: 0.076 });
+  korry(panel, "engage", 0, -0.155, ["ENGAGER"], { w: 0.092, h: 0.072, striped: true });
+  korry(panel, "nav_next", 0.122, -0.155, ["PROJET", "SUIV."], { w: 0.076 });
+  korry(panel, "contact", 0.215, -0.155, ["CONTACT"], { w: 0.076 });
 
   // aile gauche : les compétences, une touche chacune
   ([["claude", ["CLAUDE"]], ["python", ["PYTHON"]], ["sql", ["SQL"]], ["ml", ["MACHINE", "LEARNING"]]] as const)
@@ -202,33 +206,28 @@ export function buildPanel(ctx: Ctx) {
     hitbox(g, "eject", 0.05, 0.065, 0.05, "guard", lever, hinge).cap.position.set(0, 0.004, 0.02);
   }
 
-  /* globe de navigation sous verre, à la manière du « Globus » des Soyouz : ici c'est
-     Nexus qui tourne dedans, en miniature */
+  /* écran de navigation, à la place du globe : la liste des projets, dessinée dans un
+     canevas par actions/nav.ts. Un afficheur à plat, sous une vitre */
   {
-    const globe = new THREE.Group();
-    globe.position.set(0, 0.055, 0.03);
-    panel.add(globe);
-    const bez = shadowy(new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.088, 0.022, 64), M.bezel));
-    bez.rotation.x = Math.PI / 2; bez.position.z = 0.006;
-    globe.add(bez);
-    const ringT = shadowy(new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.006, 12, 64), M.chrome));
-    ringT.position.z = 0.018;
-    globe.add(ringT);
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.062, 64, 48), mat(0xffffff, 0.8, 0, { map: ctx.nexusTexture }));
-    ball.position.z = 0.012;
-    ball.castShadow = true;
-    globe.add(ball);
-    ctx.globeBall = ball;
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.068, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2),
-      new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.03, transparent: true, opacity: 0.12, depthWrite: false, envMapIntensity: 1.6 }));
-    dome.rotation.x = Math.PI / 2; dome.position.z = 0.014;
-    globe.add(dome);
-    const hair = new THREE.Mesh(new THREE.TorusGeometry(0.064, 0.0012, 6, 64, Math.PI), mat(0xc62b22, 0.5));
-    hair.position.z = 0.016; hair.rotation.z = Math.PI / 2;
-    globe.add(hair);
-    const pl = tex.placard("GLOBE · NEXUS", 0.1, 0.017);
-    pl.position.set(0, -0.102, 0.001);
-    globe.add(pl);
+    const SW = 0.44, SH = 0.19;
+    const g = new THREE.Group();
+    g.position.set(0, 0.045, 0.03);
+    panel.add(g);
+    const frame = shadowy(new THREE.Mesh(new RoundedBoxGeometry(SW + 0.03, SH + 0.03, 0.02, 3, 0.008), M.bezel));
+    frame.position.z = 0.006;
+    g.add(frame);
+    const map = tex.canvas(NAV.w, NAV.h, (c, W, H) => { c.fillStyle = "#0b0d0c"; c.fillRect(0, 0, W, H); });
+    const screenMat = new THREE.MeshBasicMaterial({ map, toneMapped: false, color: 0x0b0b0b });
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(SW, SH), screenMat);
+    mesh.position.z = 0.0165;
+    mesh.userData.skip = true;
+    g.add(mesh);
+    const glass = new THREE.Mesh(new THREE.PlaneGeometry(SW, SH),
+      new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.04, transparent: true, opacity: 0.07, depthWrite: false }));
+    glass.position.z = 0.018;
+    glass.userData.skip = true;
+    g.add(glass);
+    ctx.navScreen = { mesh, canvas: map.image as HTMLCanvasElement, tex: map, mat: screenMat };
   }
 }
 
@@ -246,5 +245,6 @@ export function updatePanel(ctx: Ctx, t: number, dt: number) {
     const glow = b.on || power.lamp === b.key ? 2.4 : night.k * 0.32 * power.k;
     b.capMat.emissiveIntensity += (glow - b.capMat.emissiveIntensity) * Math.min(1, dt * 8);
   }
-  ctx.globeBall.rotation.y += dt * 0.25;
+  // l'écran de navigation s'allume avec le reste du poste
+  ctx.navScreen.mat.color.setScalar(0.04 + 0.96 * power.k);
 }

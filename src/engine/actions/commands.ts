@@ -2,6 +2,7 @@ import type { Ctx } from "../types";
 import type { ProjectKey } from "../../content/profile";
 import type { Slip } from "./slip";
 import type { Travel } from "./travel";
+import type { Nav } from "./nav";
 import { pressButton } from "./press";
 import { ease } from "../util/tween";
 import { PLATE_GLOW } from "../world/cabin";
@@ -9,7 +10,7 @@ import { PLATE_GLOW } from "../world/cabin";
 /* Un clic pendant une animation n'est pas perdu : il attend son tour. Un second clic
    sur la commande déjà en cours (double-clic) est ignoré, sinon il déferait aussitôt
    ce qu'on vient de demander. */
-export function createCommands(ctx: Ctx, slip: Slip, travel: Travel) {
+export function createCommands(ctx: Ctx, slip: Slip, travel: Travel, nav: Nav) {
   let busy = false, current: string | null = null, queued: string | null = null;
 
   function act(key: string) {
@@ -36,15 +37,24 @@ export function createCommands(ctx: Ctx, slip: Slip, travel: Travel) {
   function run(key: string) {
     return exclusive(key, async () => {
       if (key === "tear") { await tearOpenSlip(); return; }
-      await pressButton(ctx, key);
+      // le projet à engager : le projet choisi sur l'écran (« engage »), ou un projet nommé
+      // (« engage_nexus », depuis le clavier ou le retour de la visite)
+      const cible: ProjectKey | null = key === "engage" ? nav.selected() : key.startsWith("engage_") ? (key.slice(7) as ProjectKey) : null;
+      const auRepos = travel.state.state === "home";
+      if ((key === "nav_prev" || key === "nav_next") && !auRepos) return;
+      if (cible && auRepos) await nav.goTo(cible);
+      await nav.idle();
+      await pressButton(ctx, cible ? "engage" : key);
       if (key === "lights") {
         ctx.night.on = !ctx.night.on;
       } else if (key === "eject") {
         await tearOpenSlip();
         ctx.ui.openSite();
-      } else if (key.startsWith("engage_")) {
+      } else if (key === "nav_prev" || key === "nav_next") {
+        await nav.step(key === "nav_next" ? 1 : -1);
+      } else if (cible) {
         await tearOpenSlip();
-        await travel.engage(key.slice(7) as ProjectKey);
+        await travel.engage(auRepos ? cible : travel.state.target);
       } else if (slip.state.open === key) {
         await tearOpenSlip();
       } else {
@@ -60,7 +70,7 @@ export function createCommands(ctx: Ctx, slip: Slip, travel: Travel) {
      La main droite bascule FEUX CABINE ; le plafonnier hésite puis tient ; les voyants
      s'allument un par un (test des lampes) ; les aiguilles montent en bout d'échelle et
      reviennent ; la plaque du pilote s'éclaire. */
-  const LAMP_TEST = ["ml", "sql", "python", "claude", "dossier", "engage_nexus", "engage_crible", "contact", "web", "java"];
+  const LAMP_TEST = ["ml", "sql", "python", "claude", "dossier", "nav_prev", "engage", "nav_next", "contact", "web", "java"];
   function boot() {
     const { power, anim } = ctx;
     return exclusive("boot", async () => {

@@ -52,6 +52,10 @@ export interface RestPose { pos: THREE.Vector3; rot: THREE.Euler; pose: PoseName
 
 export interface Planet {
   key: ProjectKey; name: string;
+  /** carte de la surface (libérée avec la planète) */
+  map: THREE.CanvasTexture;
+  /** décalage de la planète choisie quand elle entre ou sort du hublot */
+  offset: THREE.Vector3;
   mesh: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>;
   shell: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>;
   /** position au repos, et position d'arrivée au centre du hublot */
@@ -59,6 +63,13 @@ export interface Planet {
   /** rotation de l'extérieur qui amène la planète face au hublot */
   qAlign: THREE.Quaternion; approachLocal: THREE.Vector3;
   radius: number;
+}
+
+export interface NavScreen {
+  mesh: THREE.Mesh;
+  canvas: HTMLCanvasElement;
+  tex: THREE.CanvasTexture;
+  mat: THREE.MeshBasicMaterial;
 }
 
 export interface CameraTarget { pos: THREE.Vector3; look: THREE.Vector3; lean: number; fov: number }
@@ -80,9 +91,12 @@ export interface Ctx {
   M: Materials;
 
   space: THREE.Group;
-  planets: Record<ProjectKey, Planet>;
-  /** texture de Nexus, reprise par le globe de la planche */
-  nexusTexture: THREE.CanvasTexture;
+  /** planètes déjà fabriquées ; `planet(key)` fabrique à la demande, `releasePlanet(key)` libère */
+  planets: Partial<Record<ProjectKey, Planet>>;
+  planet(key: ProjectKey): Planet;
+  releasePlanet(key: ProjectKey): void;
+  /** l'écran de navigation, au centre de la planche */
+  navScreen: NavScreen;
 
   sun: THREE.DirectionalLight;
   dome: THREE.PointLight;
@@ -96,7 +110,6 @@ export interface Ctx {
   panel: THREE.Group;
   printer: THREE.Group;
   printerLed: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
-  globeBall: THREE.Mesh;
   plateMat: THREE.MeshStandardMaterial;
   buttons: Record<string, Button>;
   needles: Needle[];

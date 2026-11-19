@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { Ctx, Planet } from "../types";
 import type { ProjectKey } from "../../content/profile";
-import { seeded } from "../util/textures";
+import { paintAlea, paintCrible, paintNexus } from "./painters";
 import { GLSL_NOISE } from "./noise.glsl";
 
 /** soleil des planètes, venu de la gauche : on les voit à moitié éclairées (premier quartier) */
@@ -20,93 +20,6 @@ export function buildStars() {
   g.setAttribute("position", new THREE.BufferAttribute(p, 3));
   g.setAttribute("color", new THREE.BufferAttribute(c, 3));
   return new THREE.Points(g, new THREE.PointsMaterial({ size: 1.5, sizeAttenuation: false, vertexColors: true, depthWrite: false }));
-}
-
-/* Nexus : une sphère de papier à grands carreaux, sur laquelle un graphe est tracé
-   à l'encre — la page de l'application, enroulée en planète. */
-const INK = { paper: "#fdfdfb", ink: "#1b3a6b", red: "#c62b22", blue: "#2a51a3", green: "#19683d" };
-
-function nexusGraph(W: number, H: number) {
-  const rnd = seeded(11);
-  const nodes: { x: number; y: number }[] = [];
-  while (nodes.length < 34) {
-    const n = { x: 120 + rnd() * (W - 240), y: H * 0.22 + rnd() * H * 0.56 };
-    if (nodes.every((m) => Math.hypot(m.x - n.x, m.y - n.y) > 230)) nodes.push(n);
-  }
-  // chaque sommet est relié à ses deux plus proches voisins
-  const edges: [number, number][] = [], seen = new Set<string>();
-  nodes.forEach((a, i) => {
-    nodes.map((b, j) => [j, Math.hypot(b.x - a.x, b.y - a.y)] as const).filter(([j]) => j !== i)
-      .sort((p, q) => p[1] - q[1]).slice(0, 2).forEach(([j]) => {
-        const key = Math.min(i, j) + "-" + Math.max(i, j);
-        if (!seen.has(key)) { seen.add(key); edges.push([i, j]); }
-      });
-  });
-  return { nodes, edges };
-}
-
-function paintNexus(g: CanvasRenderingContext2D, W: number, H: number) {
-  const { nodes, edges } = nexusGraph(W, H);
-  g.fillStyle = "#f1ede2"; g.fillRect(0, 0, W, H);
-  const fine = 18;
-  for (let y = 0; y <= H; y += fine) {
-    const b = Math.round(y / fine) % 4 === 0;
-    g.fillStyle = b ? "rgba(128,152,216,.85)" : "rgba(186,201,236,.7)";
-    g.fillRect(0, y, W, b ? 3 : 1.5);
-  }
-  for (let x = 0; x <= W; x += fine * 4) { g.fillStyle = "rgba(186,201,236,.75)"; g.fillRect(x, 0, 1.5, H); }
-  g.fillStyle = "rgba(198,43,34,.6)"; g.fillRect(W * 0.62, 0, 5, H);    // le filet de marge
-  g.lineCap = "round";
-  for (const [i, j] of edges) {
-    g.strokeStyle = "rgba(27,58,107,.9)"; g.lineWidth = 9;
-    g.beginPath(); g.moveTo(nodes[i].x, nodes[i].y); g.lineTo(nodes[j].x, nodes[j].y); g.stroke();
-  }
-  const inks = [INK.red, INK.blue, INK.green, INK.paper, INK.blue, INK.green];
-  nodes.forEach((n, i) => {
-    const fill = inks[i % inks.length];
-    g.fillStyle = fill; g.strokeStyle = INK.ink; g.lineWidth = 8;
-    g.beginPath(); g.arc(n.x, n.y, 34, 0, Math.PI * 2); g.fill(); g.stroke();
-    g.fillStyle = fill === INK.paper ? INK.ink : INK.paper;
-    g.font = '600 40px "IBM Plex Mono"'; g.textAlign = "center"; g.textBaseline = "middle";
-    g.fillText(String.fromCharCode(65 + (i % 26)), n.x, n.y + 2);
-  });
-}
-
-/* Crible : un tableau de données enroulé autour de la planète. Des colonnes de
-   largeurs inégales, des lignes régulières, quelques valeurs ; et, çà et là, une
-   cellule vermillon : ce que l'outil retrouve. */
-function paintCrible(g: CanvasRenderingContext2D, W: number, H: number) {
-  g.fillStyle = "#f6f1ec"; g.fillRect(0, 0, W, H);
-  const rnd = seeded(23);
-  const cols: [number, number][] = [];
-  for (let x = 0; x < W;) { const w = 300 + Math.floor(rnd() * 300); cols.push([x, Math.min(w, W - x)]); x += w; }
-  const y0 = 260, rowH = 128, rows = Math.floor((H - 2 * y0) / rowH);
-  g.textBaseline = "middle";
-  for (let r = 0; r < rows; r++) {
-    const y = y0 + r * rowH;
-    cols.forEach(([x, w], ci) => {
-      if (r === 0) {
-        g.fillStyle = "#1c1412"; g.fillRect(x, y, w, rowH);
-        g.fillStyle = "#f6f1ec"; g.font = '600 52px "IBM Plex Mono"';
-        g.fillText(`col_${String(ci + 1).padStart(2, "0")}`, x + 26, y + rowH / 2);
-        return;
-      }
-      const roll = rnd();
-      if (roll < 0.1) {
-        g.fillStyle = "#e8432a"; g.fillRect(x, y, w, rowH);
-        g.fillStyle = "#fff"; g.font = '600 54px "IBM Plex Mono"';
-        g.fillText(rnd() < 0.5 ? "n/a" : String(-Math.floor(rnd() * 90)), x + 26, y + rowH / 2);
-      } else if (roll < 0.22) {
-        g.fillStyle = "#c9e2c4"; g.fillRect(x, y, w, rowH);
-      } else if (roll < 0.66) {
-        g.fillStyle = "rgba(28,20,18,.8)"; g.font = '400 54px "IBM Plex Mono"';
-        g.fillText((rnd() * (rnd() < 0.5 ? 100 : 9999)).toFixed(rnd() < 0.5 ? 0 : 2), x + 26, y + rowH / 2);
-      }
-    });
-  }
-  g.strokeStyle = "rgba(28,20,18,.7)"; g.lineWidth = 5;
-  for (let r = 0; r <= rows; r++) { g.beginPath(); g.moveTo(0, y0 + r * rowH); g.lineTo(W, y0 + r * rowH); g.stroke(); }
-  cols.forEach(([x]) => { g.beginPath(); g.moveTo(x, y0); g.lineTo(x, y0 + rows * rowH); g.stroke(); });
 }
 
 /* Les planètes, comme sur une photo prise en orbite. L'identité du projet reste la
@@ -203,39 +116,62 @@ const atmosphereMaterial = (look: Look) => new THREE.ShaderMaterial({
     }`,
 });
 
-function makePlanet(space: THREE.Group, key: ProjectKey, name: string, map: THREE.Texture, look: Look,
-  dir: THREE.Vector3, dist: number, radius: number, rot: [number, number, number]): Planet {
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 160, 120), surfaceMaterial(map, look));
-  const shell = new THREE.Mesh(new THREE.SphereGeometry(1.035, 96, 64), atmosphereMaterial(look));
+/* Les planètes se fabriquent à la demande : une carte de 4096 × 2048 pèse 32 Mo, et le
+   portfolio peut compter beaucoup de projets. La planète choisie est seule dans le hublot ;
+   celles qui s'en éloignent sont libérées (voir actions/nav.ts). */
+interface PlanetSpec { name: string; paint: (g: CanvasRenderingContext2D, W: number, H: number) => void; look: Look; radius: number; tilt: [number, number, number] }
+
+// atmosphère de Nexus : violet de l'arbre (#6B2BD9) éclairci par la diffusion ; Crible : une poussière
+// chaude tirée de son vermillon (#E8432A), comme le ciel de Mars ; Aléa : un voile de papier
+// (#F6F5F1) à peine grisé. Lumières de nuit : sodium (l'encre colorée de Nexus et de Crible).
+const SPECS: Record<ProjectKey, PlanetSpec> = {
+  nexus: { name: "NEXUS", paint: paintNexus, look: { atmo: 0x9a86e8, lights: 0xffb35c, seed: 1.7 }, radius: 24, tilt: [0.32, 2.2, 0.18] },
+  crible: { name: "CRIBLE", paint: paintCrible, look: { atmo: 0xe9a07e, lights: 0xffa35a, seed: 7.3 }, radius: 19, tilt: [0.2, 0.7, -0.1] },
+  alea: { name: "ALÉA", paint: paintAlea, look: { atmo: 0xcfc9b8, lights: 0xe8e2d0, seed: 4.1 }, radius: 22, tilt: [0.26, 4.4, 0.08] },
+};
+
+/** là où se pose la planète choisie : à droite du centre du hublot */
+const STAGE_DIR = new THREE.Vector3(0.22, 0.19, -1), STAGE_DIST = 150;
+
+function makePlanet(space: THREE.Group, key: ProjectKey, spec: PlanetSpec, map: THREE.CanvasTexture): Planet {
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 160, 120), surfaceMaterial(map, spec.look));
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(1.035, 96, 64), atmosphereMaterial(spec.look));
   shell.raycast = () => {};       // la couronne ne bloque pas les clics sur la planète
   mesh.add(shell);
-  const home = dir.clone().normalize().multiplyScalar(dist);
+  const home = STAGE_DIR.clone().normalize().multiplyScalar(STAGE_DIST);
   mesh.position.copy(home);
-  mesh.scale.setScalar(radius);
-  mesh.rotation.set(...rot);
+  mesh.scale.setScalar(spec.radius);
+  mesh.rotation.set(...spec.tilt);
   mesh.userData.planet = key;
+  mesh.visible = false;
   space.add(mesh);
   // à l'arrivée, la planète est au centre du hublot, à une distance qui lui donne la même taille apparente
-  const approach = new THREE.Vector3(0.04, 0.12, -1).normalize().multiplyScalar(52 * radius / 21);
+  const approach = new THREE.Vector3(0.04, 0.12, -1).normalize().multiplyScalar(52 * spec.radius / 21);
   const qAlign = new THREE.Quaternion().setFromUnitVectors(home.clone().normalize(), approach.clone().normalize());
   const approachLocal = approach.clone().applyQuaternion(qAlign.clone().invert());
-  return { key, name, mesh, shell, home, approach, qAlign, approachLocal, radius };
+  return { key, name: spec.name, mesh, shell, map, offset: new THREE.Vector3(), home, approach, qAlign, approachLocal, radius: spec.radius };
 }
 
 export function buildSpace(ctx: Ctx) {
   const space = new THREE.Group();
   ctx.scene.add(space);
   space.add(buildStars());
-  const nexusTexture = ctx.tex.canvas(4096, 2048, paintNexus);
-  const cribleTexture = ctx.tex.canvas(4096, 2048, paintCrible);
   ctx.space = space;
-  ctx.nexusTexture = nexusTexture;
-  ctx.planets = {
-    // atmosphère : violet de Nexus (#6B2BD9) éclairci par la diffusion ; Crible, une poussière
-    // chaude tirée de son vermillon (#E8432A), comme le ciel de Mars. Lumières de nuit : sodium.
-    nexus: makePlanet(space, "nexus", "NEXUS", nexusTexture, { atmo: 0x9a86e8, lights: 0xffb35c, seed: 1.7 },
-      new THREE.Vector3(0.3, 0.19, -1), 160, 21, [0.32, 2.2, 0.18]),
-    crible: makePlanet(space, "crible", "CRIBLE", cribleTexture, { atmo: 0xe9a07e, lights: 0xffa35a, seed: 7.3 },
-      new THREE.Vector3(-0.34, 0.2, -1), 130, 14, [0.2, 0.7, -0.1]),
+  ctx.planets = {};
+  ctx.planet = (key) => {
+    const known = ctx.planets[key];
+    if (known) return known;
+    const spec = SPECS[key];
+    const map = ctx.tex.canvas(4096, 2048, spec.paint);
+    ctx.renderer.initTexture(map);          // l'envoi à la carte graphique se fait ici, pas à l'affichage
+    return (ctx.planets[key] = makePlanet(space, key, spec, map));
+  };
+  ctx.releasePlanet = (key) => {
+    const p = ctx.planets[key];
+    if (!p) return;
+    space.remove(p.mesh);
+    for (const m of [p.mesh, p.shell]) { m.geometry.dispose(); m.material.dispose(); }
+    p.map.dispose();
+    delete ctx.planets[key];
   };
 }
