@@ -1,0 +1,50 @@
+/* Tout le contenu du portfolio, en un seul endroit : la version texte, l'écran de
+   chargement et les rubans imprimés du cockpit le lisent ici. Rien n'est dupliqué. */
+
+export const GITHUB = "https://github.com/Engoat";
+export const EMAIL = "enzoprog25@gmail.com";
+
+export const PERSON = {
+  name: "Enzo Dylan",
+  lead: "Élève ingénieur en informatique, 4e année.",
+  place: "Cameroun",
+  profile: "Je construis des outils qui montrent un calcul pendant qu'il se fait.",
+};
+
+export type SkillKey = "claude" | "python" | "sql" | "ml" | "web" | "java";
+export interface Skill { key: SkillKey; title: string; text: string }
+
+export const SKILLS: Skill[] = [
+  { key: "claude", title: "Claude", text: "Claude est mon binôme de développement : Claude Code pour écrire et relire du code, l'API Claude dans mes applications. Ce cockpit a été construit avec lui." },
+  { key: "python", title: "Python", text: "Back-end et données : API web avec FastAPI, analyse avec pandas, pipelines de collecte et de nettoyage." },
+  { key: "sql", title: "SQL", text: "PostgreSQL pour les applications, DuckDB pour l'analyse : Crible fait tourner DuckDB dans le navigateur. Jointures, agrégations, conception de schémas." },
+  { key: "ml", title: "Machine learning", text: "Apprentissage supervisé avec scikit-learn : régression, classification, validation croisée, choix des métriques." },
+  { key: "web", title: "TypeScript · React", text: "Interfaces en React et TypeScript, construites avec Vite. Nexus, Crible et ce portfolio en sont des exemples." },
+  { key: "java", title: "Java", text: "Back-end en Java 21 avec Spring Boot 3 : API REST, extraction de texte depuis des fichiers Word et PDF." },
+];
+
+/* lignes courtes pour le ruban du dossier */
+export const SKILL_LINES = ["TypeScript · React · Vite", "Python · FastAPI · pandas", "Java · Spring Boot", "SQL · PostgreSQL", "Git"];
+
+export type ProjectKey = "nexus" | "crible";
+export interface Project { key: ProjectKey; name: string; text: string; slip: string; repo: string }
+
+export const PROJECTS: Project[] = [
+  {
+    key: "nexus",
+    name: "Nexus",
+    text: "Atelier d'algorithmes de graphes et de files d'attente : on dessine un graphe, on choisit un algorithme parmi huit et on le suit étape par étape. Un second atelier simule une file d'attente et en calcule les mesures.",
+    slip: "Atelier pour apprendre les algorithmes de graphes (8 algorithmes) et simuler des files d'attente.",
+    repo: `${GITHUB}/nexus`,
+  },
+  {
+    key: "crible",
+    name: "Crible",
+    text: "Contrôle de la qualité d'un fichier CSV ou Excel, dans le navigateur : on écrit des règles (douze types), on remonte aux lignes en défaut et on exporte un rapport. Des contrôles pour le machine learning (fuite de cible, écart entre entraînement et test) complètent l'outil.",
+    slip: "Contrôle de la qualité d'un fichier CSV ou Excel : règles, lignes en défaut, rapport.",
+    repo: `${GITHUB}/crible`,
+  },
+];
+
+/* « github.com/Engoat/nexus » : l'adresse sans le protocole, pour l'affichage */
+export const bare = (url: string) => url.replace(/^https?:\/\//, "");
