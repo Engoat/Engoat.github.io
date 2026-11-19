@@ -69,7 +69,9 @@ log("dépliage fait")
 METALS = {"chrome", "bolt"}
 # sous la peinture : l'aluminium nu, clair ; sous le noir, un gris de plastique usé
 WORN_UNDER = {"paint": (0.62, 0.63, 0.62), "paintDark": (0.58, 0.59, 0.58), "frame": (0.62, 0.63, 0.62),
-              "bezel": (0.30, 0.30, 0.30), "black": (0.24, 0.24, 0.24)}
+              "bezel": (0.20, 0.20, 0.20), "black": (0.17, 0.17, 0.17)}
+# les cerclages et pièces noires s'écaillent beaucoup moins que la peinture claire (taches plus rares)
+SPOTS = {"bezel": (0.56, 0.70), "black": (0.56, 0.70)}
 targets = {}
 for mat in me.materials:
     nt = mat.node_tree; N = nt.nodes; L = nt.links
@@ -89,12 +91,19 @@ for mat in me.materials:
     # taches irrégulières
     noise = N.new("ShaderNodeTexNoise"); noise.inputs["Scale"].default_value = 70; noise.inputs["Detail"].default_value = 8
     L.new(tex.outputs["Object"], noise.inputs["Vector"])
-    spots = N.new("ShaderNodeMapRange"); spots.inputs["From Min"].default_value = 0.38; spots.inputs["From Max"].default_value = 0.55
+    spots = N.new("ShaderNodeMapRange")
+    spots.inputs["From Min"].default_value, spots.inputs["From Max"].default_value = SPOTS.get(mat.name, (0.38, 0.55))
     L.new(noise.outputs["Fac"], spots.inputs["Value"])
-    wear = N.new("ShaderNodeMath"); wear.operation = "MULTIPLY"; wear.use_clamp = True
-    L.new(edge.outputs["Result"], wear.inputs[0]); L.new(spots.outputs["Result"], wear.inputs[1])
     # saleté dans les creux
     ao = N.new("ShaderNodeAmbientOcclusion"); ao.samples = 32; ao.inputs["Distance"].default_value = 0.04
+    # une arête rentrante (pied d'un cadran sur la planche) est dans l'ombre : la peinture n'y
+    # s'use pas. On ne garde que les arêtes saillantes, bien dégagées.
+    exposed = N.new("ShaderNodeMapRange"); exposed.inputs["From Min"].default_value = 0.82; exposed.inputs["From Max"].default_value = 0.95
+    L.new(ao.outputs["AO"], exposed.inputs["Value"])
+    wear0 = N.new("ShaderNodeMath"); wear0.operation = "MULTIPLY"; wear0.use_clamp = True
+    L.new(edge.outputs["Result"], wear0.inputs[0]); L.new(spots.outputs["Result"], wear0.inputs[1])
+    wear = N.new("ShaderNodeMath"); wear.operation = "MULTIPLY"; wear.use_clamp = True
+    L.new(wear0.outputs["Value"], wear.inputs[0]); L.new(exposed.outputs["Result"], wear.inputs[1])
     inv = N.new("ShaderNodeMath"); inv.operation = "SUBTRACT"; inv.inputs[0].default_value = 1.0
     L.new(ao.outputs["AO"], inv.inputs[1])
     noise2 = N.new("ShaderNodeTexNoise"); noise2.inputs["Scale"].default_value = 18; noise2.inputs["Detail"].default_value = 4

@@ -12,6 +12,7 @@ import { buildPanel, updatePanel } from "./world/panel";
 import { buildConsoles } from "./world/console";
 import { buildHands, placeHandsAtRest, updateArm } from "./world/hands";
 import { applyWear, exportWearable } from "./world/wear";
+import { buildDetails } from "./world/details";
 import { createSlip } from "./actions/slip";
 import { createTravel } from "./actions/travel";
 import { createCommands } from "./actions/commands";
@@ -78,6 +79,7 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
   buildCabin(ctx);
   buildPanel(ctx);
   buildConsoles(ctx);
+  buildDetails(ctx);
   const [gR, gL] = await handsP;
   buildHands(ctx, gR, gL);
   // matières usées calculées dans Blender (sans elles, le cockpit garde ses couleurs unies)

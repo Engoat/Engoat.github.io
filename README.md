@@ -26,6 +26,7 @@ src/
     actions/           appuyer sur un bouton, imprimer le ruban, voyager, la file des commandes
     demo/              les visites de Nexus et de Crible, et l'affichage de la tour sur la vitre
 tools/bake_wear.py     calcul des matières usées dans Blender
+tools/smooth_hands.py  lissage des modèles de main (subdivision, squelette conservé)
 public/assets/         polices, modèles de main, images
 ```
 
@@ -43,6 +44,10 @@ version sans JavaScript et les données structurées sont écrites dans `index.h
   Pour refaire le calcul : ouvrir la page avec `?export`, enregistrer le résultat de
   `window.__exportWear()` dans `scratch/wear-in.glb`, puis
   `blender -b --factory-startup -P tools/bake_wear.py -- 2048 32`.
+- **Détails** : vis, rivets, joint de hublot, poignées et câbles (`engine/world/details.ts`), fusionnés
+  par matériau, passent eux aussi par le calcul d'usure.
+- **Mains** : modèles WebXR lissés dans Blender, gant en cuir grainé, gantelet évasé et bague de
+  poignet pleine sur une manche en toile.
 - **Moteur de rendu** : WebGL. Le moteur WebGPU de Three.js a été essayé ; sur une puce Intel UHD 620,
   il était plus lent, même dans son mode WebGL 2.
 - **Visites** : elles avancent seules ; « Suivant » termine l'étape en cours, « Passer » va à la fin.

@@ -41,10 +41,27 @@ export function setPose(h: Hand, curls: number[], thumb: number) {
 
 export function buildHands(ctx: Ctx, gltfRight: GLTF, gltfLeft: GLTF) {
   const { tex, scene } = ctx;
-  const gloveMat = mat(0x2a2a2c, 0.72);
-  // combinaison orange de vol : un tissu épais, plissé, pas un tube lisse
+  // gant de cuir souple : grain fin en relief, reflet satiné du cuir patiné
+  const grain = tex.canvas(512, 512, (g, W, H) => {
+    g.fillStyle = "#808080"; g.fillRect(0, 0, W, H);
+    const rnd = seeded(7);
+    for (let i = 0; i < 14000; i++) {
+      const v = 90 + rnd() * 80;
+      g.fillStyle = `rgb(${v},${v},${v})`;
+      g.beginPath(); g.arc(rnd() * W, rnd() * H, 1 + rnd() * 2.2, 0, Math.PI * 2); g.fill();
+    }
+  }, false);
+  grain.wrapS = grain.wrapT = THREE.RepeatWrapping; grain.repeat.set(5, 5);
+  const gloveMat = new THREE.MeshPhysicalMaterial({
+    color: 0x25221f, roughness: 0.58, bumpMap: grain, bumpScale: 0.6,
+    sheen: 0.6, sheenColor: new THREE.Color(0x5a524a), sheenRoughness: 0.55,
+  });
+  // combinaison orange de vol : un tissu épais, plissé, à trame visible, pas un tube lisse
   const fabric = tex.canvas(512, 512, (g, W, H) => {
     g.fillStyle = "#808080"; g.fillRect(0, 0, W, H);
+    // trame du tissu
+    for (let y = 0; y < H; y += 3) { g.fillStyle = y % 6 ? "rgba(255,255,255,.07)" : "rgba(0,0,0,.07)"; g.fillRect(0, y, W, 1.5); }
+    for (let x = 0; x < W; x += 3) { g.fillStyle = x % 6 ? "rgba(0,0,0,.05)" : "rgba(255,255,255,.05)"; g.fillRect(x, 0, 1.5, H); }
     const rnd = seeded(3);
     for (let i = 0; i < 26; i++) {
       const y = rnd() * H, amp = 18 + rnd() * 30, w = 10 + rnd() * 26;
@@ -63,7 +80,10 @@ export function buildHands(ctx: Ctx, gltfRight: GLTF, gltfLeft: GLTF) {
     }
   }, false);
   fabric.wrapS = fabric.wrapT = THREE.RepeatWrapping;
-  const sleeveMat = mat(0xcf5a1a, 0.9, 0, { side: THREE.DoubleSide, bumpMap: fabric, bumpScale: 3 });
+  const sleeveMat = new THREE.MeshPhysicalMaterial({
+    color: 0xc4531c, roughness: 0.92, side: THREE.DoubleSide, bumpMap: fabric, bumpScale: 3,
+    sheen: 1, sheenColor: new THREE.Color(0xf0a070), sheenRoughness: 0.7,      // le duvet du tissu au bord de la lumière
+  });
   // profil le long de la manche : légère conicité et bourrelets de tissu
   const sleeveGeo = (r0: number, r1: number) => {
     const pts: THREE.Vector2[] = [];
@@ -74,8 +94,18 @@ export function buildHands(ctx: Ctx, gltfRight: GLTF, gltfLeft: GLTF) {
     }
     return new THREE.LatheGeometry(pts, 32);
   };
-  const cuffMat = mat(0x3a3b3d, 0.8, 0, { side: THREE.DoubleSide });
-  const ringMat = mat(0x8a96a8, 0.3, 0.9, { side: THREE.DoubleSide });     // bague de poignet anodisée
+  // poignet : le gant monte en gantelet évasé sur la manche ; la bague de verrouillage est
+  // un anneau plein d'aluminium anodisé, comme sur les combinaisons Sokol
+  const gauntletGeo = (() => {
+    const pts: THREE.Vector2[] = [];
+    for (let i = 0; i <= 12; i++) {
+      const v = i / 12;
+      pts.push(new THREE.Vector2(0.036 + 0.012 * v * v + 0.0015 * Math.sin(v * 9), v - 0.5));
+    }
+    return new THREE.LatheGeometry(pts, 32).scale(1, 0.06, 1);
+  })();
+  const ringGeo = new THREE.TorusGeometry(0.05, 0.0065, 12, 48).rotateX(Math.PI / 2);
+  const ringMat = mat(0x4f6c9a, 0.32, 0.85);
 
   function makeHand(gltf: GLTF, side: 1 | -1): Hand {
     const model = gltf.scene;
@@ -120,8 +150,10 @@ export function buildHands(ctx: Ctx, gltfRight: GLTF, gltfLeft: GLTF) {
     const forearm = shadowy(new THREE.Mesh(sleeveGeo(0.04, 0.058), sleeveMat));
     const upper = shadowy(new THREE.Mesh(sleeveGeo(0.072, 0.064), sleeveMat));
     const elbowBall = shadowy(new THREE.Mesh(new THREE.SphereGeometry(0.062, 20, 14), sleeveMat));
-    const cuff = shadowy(new THREE.Mesh(new THREE.CylinderGeometry(0.043, 0.037, 0.05, 28, 1, true), cuffMat));
-    const ring = shadowy(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.014, 40, 1, true), ringMat));
+    const gauntletMat = gloveMat.clone();
+    gauntletMat.side = THREE.DoubleSide;
+    const cuff = shadowy(new THREE.Mesh(gauntletGeo, gauntletMat));
+    const ring = shadowy(new THREE.Mesh(ringGeo, ringMat));
     scene.add(forearm, upper, elbowBall, cuff, ring);
 
     // bande nominative brodée sur la manche gauche, comme sur les combinaisons
