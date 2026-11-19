@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { CaptionItem, Ctx } from "../types";
 import { mat } from "../util/textures";
 import { SLOT } from "../world/console";
-import { EMAIL, GITHUB, PERSON, PROJECTS, SKILLS, SKILL_LINES, bare } from "../../content/profile";
+import { EMAIL, GITHUB, IN_PROGRESS, PERSON, PROJECTS, SKILLS, SKILL_LINES, bare } from "../../content/profile";
 
 /* Le ruban de l'imprimante de bord. Conventions des lignes :
    "# " titre, "! " gras, "## " rubrique, "> " renvoi, "--" filet, "" blanc. */
@@ -15,6 +15,9 @@ const SLIPS: Record<string, string[]> = {
     "## COMPÉTENCES", ...SKILL_LINES, "",
     "## PROJETS",
     ...PROJECTS.flatMap((p) => ["! " + p.name.toUpperCase(), p.slip, `> → bouton ENGAGER ${p.name.toUpperCase()}`, `> code : ${bare(p.repo)}`, ""]).slice(0, -1),
+    "",
+    "## EN COURS",
+    "! " + IN_PROGRESS.name.toUpperCase(), IN_PROGRESS.slip,
     "--",
     `> GitHub : ${bare(GITHUB)}`,
     "> Contact : bouton CONTACT",

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { EMAIL, GITHUB, PERSON, PROJECTS, SKILLS, bare } from "../content/profile";
+import { EMAIL, GITHUB, IN_PROGRESS, PERSON, PROJECTS, SKILLS, bare } from "../content/profile";
 import { BACK, FRONT, SATELLITE, svgPath } from "./logo";
 
 /* Le portfolio classique : ce qui sort du cockpit au bouton ÉJECTION (ou de l'écran de
@@ -122,6 +122,11 @@ export function ClassicSite({ open, onClose, closeLabel }: Props) {
             </div>
           </article>
         ))}
+        <aside className="site__wip" aria-labelledby="site-wip">
+          <p className="site__wip-tag">En cours</p>
+          <h3 id="site-wip">{IN_PROGRESS.name}</h3>
+          <p>{IN_PROGRESS.text}</p>
+        </aside>
       </section>
 
       <section id="competences" className="site__section site__section--tint" aria-labelledby="site-competences">

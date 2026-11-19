@@ -123,6 +123,11 @@ html:has(.eject--static) body { overflow: auto }
 .site__project-body p { margin: 0; max-width: 62ch }
 .site__repo { font: 500 14px "IBM Plex Mono", monospace; color: var(--klein) !important; text-underline-offset: 4px; white-space: nowrap }
 
+.site__wip { margin-top: 88px; border: 1px dashed var(--ink-2); border-radius: 6px; padding: 26px 28px 28px; max-width: 760px }
+.site__wip-tag { display: inline-block; font: 600 12px/1 "IBM Plex Mono", monospace; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--klein); border: 1px solid var(--klein); border-radius: 3px; padding: 5px 8px; margin: 0 0 14px }
+.site__wip h3 { font: 700 30px/1.1 "Barlow Condensed", sans-serif; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 8px }
+.site__wip p:last-child { margin: 0; max-width: 62ch }
 .site__skills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; list-style: none; margin: 0; padding: 0 }
 .site__skills li { background: var(--card); border: 1px solid var(--line); border-top: 2px solid var(--klein); border-radius: 4px; padding: 22px 22px 24px }
 .site__skills h3 { font: 700 24px/1.1 "Barlow Condensed", sans-serif; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 10px }

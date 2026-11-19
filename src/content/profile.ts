@@ -61,5 +61,12 @@ export const PROJECTS: Project[] = [
   },
 ];
 
+/* projet en cours, affiché comme tel (exception voulue par Enzo, voir regles.md) */
+export const IN_PROGRESS = {
+  name: "Prêts entre amis et tontines",
+  text: "Application mobile Android. On enregistre un prêt fait à un ami, qui le valide de son côté : la dette est reconnue par les deux. Elle servira aussi à tenir les comptes d'une tontine.",
+  slip: "Application mobile : prêts entre amis validés par les deux, et comptes de tontine.",
+};
+
 /* « github.com/Engoat/nexus » : l'adresse sans le protocole, pour l'affichage */
 export const bare = (url: string) => url.replace(/^https?:\/\//, "");

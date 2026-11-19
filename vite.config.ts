@@ -1,6 +1,6 @@
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
-import { EMAIL, GITHUB, PERSON, PROJECTS, SKILLS, bare } from "./src/content/profile";
+import { EMAIL, GITHUB, IN_PROGRESS, PERSON, PROJECTS, SKILLS, bare } from "./src/content/profile";
 
 /** adresse publique du site (aperçus de partage, adresse canonique) */
 const SITE_URL = process.env.SITE_URL ?? "https://engoat.github.io/";
@@ -18,6 +18,7 @@ function staticContent(): Plugin {
 <h2>Profil</h2><p>${esc(PERSON.profile)}</p>
 <h2>Compétences</h2><dl>${SKILLS.map((s) => `<dt>${esc(s.title)}</dt><dd>${esc(s.text)}</dd>`).join("")}</dl>
 <h2>Projets</h2>${PROJECTS.map((p) => `<h3>${esc(p.name)}</h3><p>${esc(p.text)}</p><p>Code : <a href="${p.repo}">${bare(p.repo)}</a></p>`).join("")}
+<h2>En cours</h2><h3>${esc(IN_PROGRESS.name)}</h3><p>${esc(IN_PROGRESS.text)}</p>
 <h2>Contact</h2><p><a href="mailto:${EMAIL}">${EMAIL}</a></p><p><a href="${GITHUB}">${bare(GITHUB)}</a></p>
 </article></main></noscript>`;
   const person = { "@context": "https://schema.org", "@type": "Person", name: PERSON.name, url: SITE_URL,
