@@ -41,7 +41,7 @@ export function createCommands(ctx: Ctx, slip: Slip, travel: Travel) {
         ctx.night.on = !ctx.night.on;
       } else if (key === "eject") {
         await tearOpenSlip();
-        ctx.ui.openText();
+        ctx.ui.openSite();
       } else if (key.startsWith("engage_")) {
         await tearOpenSlip();
         await travel.engage(key.slice(7) as ProjectKey);
@@ -80,8 +80,8 @@ export function createCommands(ctx: Ctx, slip: Slip, travel: Travel) {
     });
   }
 
-  /** retour de la version texte : le capot de l'éjection se referme */
-  function textClosed() {
+  /** retour du portfolio classique : le capot de l'éjection se referme */
+  function siteClosed() {
     const b = ctx.buttons.eject;
     if (!b.kind || !b.hinge) return;
     b.lever.rotation.x = 0.5;
@@ -89,6 +89,6 @@ export function createCommands(ctx: Ctx, slip: Slip, travel: Travel) {
     void ctx.anim.tween(0.3, (k) => { hinge.rotation.x = h0 * (1 - ease(k)); });
   }
 
-  return { act, boot, textClosed };
+  return { act, boot, siteClosed };
 }
 export type Commands = ReturnType<typeof createCommands>;

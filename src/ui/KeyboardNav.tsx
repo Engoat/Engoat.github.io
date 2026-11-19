@@ -10,7 +10,7 @@ const COMMANDS: [string, string][] = [
   ...SKILLS.map((s): [string, string] => [s.key, s.title]),
   ["next", "Visite : phrase suivante"],
   ["lights", "Feux cabine"],
-  ["eject", "Version texte"],
+  ["eject", "Éjection : portfolio classique"],
 ];
 
 export function KeyboardNav({ onAct }: { onAct: (key: string) => void }) {

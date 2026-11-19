@@ -1,104 +1,105 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PERSON } from "../content/profile";
+import { createPainter, type FromPainter, type Layout, type ToPainter } from "./loading/painter";
 
 /* L'écran de chargement : le logo d'Enzo Dylan (l'orbite) se trace au rythme du vrai
-   chargement, sur le bleu Klein de la marque. Le satellite suit la pointe du trait, et
-   chaque étape réelle est nommée. Une fois tout prêt, la planète du logo s'ouvre comme
-   un iris sur le cockpit, encore éteint, juste avant son allumage. */
+   chargement, sur le bleu Klein de la marque, et chaque étape réelle est nommée. Une fois
+   tout prêt, le satellite fait un dernier tour, puis la planète du logo s'ouvre comme un
+   iris sur le cockpit, encore éteint, juste avant son allumage.
 
-// les deux moitiés de l'orbite (derrière puis devant la planète), tracés du logo
-const BACK = "M7.71,65.39 L7.45,64.03 L7.59,62.53 L8.14,60.91 L9.10,59.18 L10.45,57.37 L12.18,55.49 L14.27,53.55 L16.71,51.58 L19.47,49.59 L22.53,47.61 L25.84,45.65 L29.39,43.74 L33.14,41.88 L37.05,40.10 L41.09,38.42 L45.21,36.84 L49.38,35.40 L53.55,34.09 L57.69,32.94 L61.76,31.96 L65.71,31.14 L69.51,30.51 L73.12,30.07 L76.52,29.81 L79.65,29.76 L82.50,29.89 L85.04,30.22 L87.23,30.75 L89.08,31.45 L90.54,32.34 L91.61,33.39 L92.29,34.61";
-const FRONT = "M92.29,34.61 L92.55,35.97 L92.41,37.47 L91.86,39.09 L90.90,40.82 L89.55,42.63 L87.82,44.51 L85.73,46.45 L83.29,48.42 L80.53,50.41 L77.47,52.39 L74.16,54.35 L70.61,56.26 L66.86,58.12 L62.95,59.90 L58.91,61.58 L54.79,63.16 L50.62,64.60 L46.45,65.91 L42.31,67.06 L38.24,68.04 L34.29,68.86 L30.49,69.49 L26.88,69.93 L23.48,70.19 L20.35,70.24 L17.50,70.11 L14.96,69.78 L12.77,69.25 L10.92,68.55 L9.46,67.66 L8.39,66.61 L7.71,65.39";
+   Le dessin se fait dans un worker (voir loading/painter.ts) : il reste fluide pendant que
+   le fil principal construit le cockpit. Le texte reste dans la page, pour l'accessibilité. */
 
 interface Props {
-  progress: number; step: string; done: boolean; failed: boolean; onText: () => void;
+  progress: number; step: string; done: boolean; failed: boolean; onClassic: () => void;
   /** l'iris est ouvert : le cockpit peut s'allumer */
   onOpened: () => void;
 }
 
-export function Loading({ progress, step, done, failed, onText, onOpened }: Props) {
-  const back = useRef<SVGPathElement>(null);
-  const front = useRef<SVGPathElement>(null);
-  const planet = useRef<SVGCircleElement>(null);
-  const root = useRef<HTMLDivElement>(null);
-  // la valeur affichée rattrape la vraie progression en douceur
-  const [shown, setShown] = useState(0);
-  const current = useRef(0);
-  const [sat, setSat] = useState({ x: 7.71, y: 65.39 });
+const FONT = '600 1px "Barlow Condensed", sans-serif';
+
+export function Loading({ progress, step, done, failed, onClassic, onOpened }: Props) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const orbit = useRef<HTMLDivElement>(null);
+  const send = useRef<(m: ToPainter) => void>(() => {});
+  const opened = useRef(onOpened);
+  opened.current = onOpened;
+  const finished = useRef(false);
+  const [pct, setPct] = useState(0);
+  const [opening, setOpening] = useState(false);
   const [gone, setGone] = useState(false);
 
   useEffect(() => {
-    let raf = 0;
-    const tick = () => {
-      const s = current.current, n = Math.abs(progress - s) < 0.004 ? progress : s + (progress - s) * 0.14;
-      current.current = n;
-      setShown(n);
-      if (n !== progress) raf = requestAnimationFrame(tick);
+    const c = canvas.current!;
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const layout = (): Layout => {
+      const r = orbit.current!.getBoundingClientRect();
+      return { w: innerWidth, h: innerHeight, dpr: Math.min(devicePixelRatio, 2), logo: { x: r.left, y: r.top, size: r.width } };
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [progress]);
+    const finish = () => {
+      if (finished.current) return;
+      finished.current = true;
+      setGone(true);
+      opened.current();
+    };
+    const receive = (m: FromPainter) => {
+      if (m.type === "pct") setPct(m.v);
+      else if (m.type === "opening") setOpening(true);
+      // sans animation, l'écran s'efface en fondu (CSS) avant de disparaître
+      else setTimeout(finish, reduced ? 400 : 0);
+    };
 
-  /* l'orbite fermée et le cockpit prêt, le satellite fait un dernier tour jusqu'à sa
-     place dans le logo (à 10 % du trait de devant) ; l'iris s'ouvre ensuite */
-  const [lap, setLap] = useState(0);
-  const closed = done && shown >= 1;
+    let worker: Worker | null = null;
+    if (typeof c.transferControlToOffscreen === "function") {
+      worker = new Worker(new URL("./loading/loadingWorker.ts", import.meta.url), { type: "module" });
+      worker.onmessage = (e: MessageEvent<FromPainter>) => receive(e.data);
+      const off = c.transferControlToOffscreen();
+      const fontUrl = new URL(`${import.meta.env.BASE_URL}assets/fonts/barlow-condensed-latin-600.woff2`, location.href).href;
+      worker.postMessage({ type: "init", reduced, font: FONT, fontUrl, canvas: off, ...layout() }, [off]);
+      send.current = (m) => worker!.postMessage(m);
+    } else {
+      // navigateur sans OffscreenCanvas : le même dessin, sur le fil principal
+      const p = createPainter(c.getContext("2d")!, (w, h) => { c.width = w; c.height = h; }, receive);
+      p.receive({ type: "init", reduced, font: FONT, ...layout() });
+      send.current = p.receive;
+    }
+
+    // le logo bouge quand la page change de taille ou quand les polices arrivent
+    const relayout = () => { if (orbit.current) send.current({ type: "layout", ...layout() }); };
+    const ro = new ResizeObserver(relayout);
+    ro.observe(orbit.current!.parentElement!);
+    addEventListener("resize", relayout);
+    void document.fonts.ready.then(relayout);
+    return () => { ro.disconnect(); removeEventListener("resize", relayout); worker?.terminate(); };
+  }, []);
+
+  useEffect(() => { send.current({ type: "progress", k: progress }); }, [progress]);
+  useEffect(() => { if (done) send.current({ type: "done" }); }, [done]);
+  useEffect(() => { if (failed) send.current({ type: "fail" }); }, [failed]);
+
+  // filet de sécurité : si le dessin n'a pas pu tourner, l'écran s'efface quand même
   useEffect(() => {
-    if (!closed) return;
-    let raf = 0;
-    const t0 = performance.now();
-    const tick = (now: number) => {
-      const k = Math.min(1, (now - t0) / 900);
-      setLap(1 - (1 - k) ** 3);
-      if (k < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [closed]);
-
-  // le satellite : à la pointe du trait, puis pendant le dernier tour
-  useLayoutEffect(() => {
-    if (!back.current || !front.current) return;
-    // position sur l'orbite entière : 0 → 0,5 derrière la planète, 0,5 → 1 devant
-    const u = closed ? (lap < 0.83 ? lap * 1.2 * 0.5 + 0 : 0.5 + (lap - 0.83) / 0.17 * 0.05) : shown;
-    const onFront = u >= 0.5;
-    const path = onFront ? front.current : back.current;
-    const along = Math.min(onFront ? (u - 0.5) * 2 : u * 2, 1);
-    const p = path.getPointAtLength(path.getTotalLength() * along);
-    setSat({ x: p.x, y: p.y });
-  }, [shown, lap, closed]);
-
-  // l'iris s'ouvre depuis le centre de la planète du logo
-  const opening = (closed && lap >= 1) || failed;
-  useLayoutEffect(() => {
-    if (!opening || !planet.current || !root.current) return;
-    const r = planet.current.getBoundingClientRect();
-    root.current.style.setProperty("--cx", `${r.left + r.width / 2}px`);
-    root.current.style.setProperty("--cy", `${r.top + r.height / 2}px`);
-    const id = setTimeout(() => { setGone(true); onOpened(); }, 1500);
+    if (!done && !failed) return;
+    const id = setTimeout(() => {
+      if (finished.current) return;
+      finished.current = true;
+      setGone(true);
+      opened.current();
+    }, 6000);
     return () => clearTimeout(id);
-  }, [opening, onOpened]);
+  }, [done, failed]);
 
   if (gone) return null;
-  const backK = Math.min(shown * 2, 1), frontK = Math.max(0, shown * 2 - 1);
   return (
-    <div ref={root} className="loading" data-open={opening} role="status" aria-label={`Chargement du cockpit, ${Math.round(shown * 100)} %`}>
-      <div className="loading__card">
-        <svg className="loading__orbit" viewBox="0 0 100 100" aria-hidden="true">
-          <path ref={back} d={BACK} pathLength={1} className="loading__arc" style={{ strokeDashoffset: 1 - backK }} />
-          <circle ref={planet} cx="50" cy="50" r="21" className="loading__planet" />
-          {/* le trait de devant passe sur la planète : un liseré bleu l'en détache */}
-          <path d={FRONT} pathLength={1} className="loading__gap" style={{ strokeDashoffset: 1 - frontK }} />
-          <path ref={front} d={FRONT} pathLength={1} className="loading__arc" style={{ strokeDashoffset: 1 - frontK }} />
-          <circle cx={sat.x} cy={sat.y} r="6" className="loading__sat" />
-        </svg>
+    <div className="loading" data-open={opening}>
+      <canvas ref={canvas} className="loading__canvas" aria-hidden="true" />
+      <div className="loading__card" role="progressbar" aria-label="Chargement du cockpit"
+        aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+        <div ref={orbit} className="loading__orbit" />
         <p className="loading__name">{PERSON.name}</p>
         <p className="loading__lead">{PERSON.lead}</p>
-        <p className="loading__state">
-          <span>{failed ? "La 3D ne peut pas démarrer ici" : step}</span>
-          <span className="loading__pct">{Math.round(shown * 100)} %</span>
-        </p>
-        <button type="button" className="loading__text" onClick={onText}>Lire la version texte</button>
+        <p className="loading__state">{failed ? "La 3D ne peut pas démarrer ici" : step}</p>
+        <button type="button" className="loading__text" onClick={onClassic}>Voir le portfolio classique</button>
       </div>
     </div>
   );

@@ -39,8 +39,14 @@ export async function exportWearable(ctx: Ctx) {
 /** remplace les pièces fixes par le modèle usé, s'il existe ; sinon ne change rien */
 export async function applyWear(ctx: Ctx) {
   const base = import.meta.env.BASE_URL + "assets/wear/";
-  const texture = (name: string, srgb: boolean) => new THREE.TextureLoader().loadAsync(base + name).then((t) => {
-    t.flipY = false; t.channel = 1;
+  /* les images (2048 px) sont décodées hors du fil principal (ImageBitmap) ; sinon le
+     décodage se fait à l'envoi vers la carte graphique, un quart de seconde par image */
+  const load = (url: string): Promise<THREE.Texture> => typeof createImageBitmap === "function"
+    ? new THREE.ImageBitmapLoader().setOptions({ imageOrientation: "none", premultiplyAlpha: "none", colorSpaceConversion: "none" })
+      .loadAsync(url).then((bmp) => { const t = new THREE.Texture(bmp); t.needsUpdate = true; return t; })
+    : new THREE.TextureLoader().loadAsync(url);
+  const texture = (name: string, srgb: boolean) => load(base + name).then((t) => {
+    t.flipY = false; t.channel = 1; t.name = name;
     t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
     t.anisotropy = ctx.renderer.capabilities.getMaxAnisotropy();
     return t;

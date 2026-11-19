@@ -2,7 +2,7 @@
 
 Un cockpit de vaisseau en 3D, vu depuis le siège du pilote. Les projets sont des planètes : on y va en
 cliquant dessus ou sur le bouton ENGAGER, et une visite présente l'application. Le dossier et le contact
-sortent de l'imprimante de bord. Une version texte donne le même contenu sans la 3D.
+sortent de l'imprimante de bord. Le bouton ÉJECTION ouvre un portfolio classique, sans la 3D (accessible aussi par l'adresse `#classique`).
 
 En ligne : https://engoat.github.io/
 
@@ -19,7 +19,7 @@ npm run build      # vérification des types, puis le site statique dans dist/
 ```
 src/
   content/profile.ts   tout le contenu (profil, compétences, projets, liens), à un seul endroit
-  App.tsx, ui/         l'interface en React : chargement, barre du bas, clavier, version texte
+  App.tsx, ui/         l'interface en React : chargement, barre du bas, clavier, portfolio classique
   engine/              le cockpit, en Three.js
     index.ts           assemble la scène, la boucle de rendu et les clics
     world/             l'espace et les planètes, la cabine, la planche, les mains, les matières usées

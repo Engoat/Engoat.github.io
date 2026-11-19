@@ -21,25 +21,19 @@ html, body { margin: 0; height: 100%; background: #050608; overflow: hidden }
 .caption button:hover { background: #34383b }
 
 /* l'écran de chargement */
-/* champ bleu Klein (#002FA7) de la marque Enzo Dylan, logo blanc ; à la fin, un iris
-   s'ouvre depuis la planète du logo (--r grandit dans le masque) */
-@property --r { syntax: "<length>"; inherits: false; initial-value: 0px }
+/* champ bleu Klein (#002FA7) de la marque Enzo Dylan, logo blanc. Le logo, le champ et
+   l'iris final sont dessinés dans le canevas (par un worker) ; le texte reste ici. */
 .loading { --klein: #002fa7; position: fixed; inset: 0; display: grid; place-items: center; background: var(--klein);
-  z-index: 6; padding: 0 16px; --r: 0px;
-  mask: radial-gradient(circle at var(--cx, 50%) var(--cy, 40%), transparent var(--r), #000 calc(var(--r) + 1px));
-  transition: --r 1.4s cubic-bezier(.75, 0, .2, 1) }
-.loading[data-open="true"] { --r: 160vmax; pointer-events: none }
-.loading__card { text-align: center }
-.loading__orbit { width: clamp(120px, 22vw, 200px); height: auto; display: block; margin: 0 auto 18px; overflow: visible }
-.loading__arc { fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1 1 }
-.loading__gap { fill: none; stroke: var(--klein); stroke-width: 8; stroke-linecap: round; stroke-dasharray: 1 1 }
-.loading__planet { fill: #fff }
-.loading__sat { fill: #fff; stroke: var(--klein); stroke-width: 3 }
+  z-index: 6; padding: 0 16px }
+.loading[data-open="true"] { background: transparent; pointer-events: none }
+.loading__canvas { position: absolute; inset: 0; width: 100%; height: 100% }
+.loading__card { position: relative; text-align: center; transition: opacity .35s }
+.loading[data-open="true"] .loading__card { opacity: 0 }
+.loading__orbit { width: clamp(120px, 22vw, 200px); aspect-ratio: 1; margin: 0 auto 18px }
 .loading__name { font: 700 clamp(40px, 8vw, 64px)/1 "Barlow Condensed", sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #fff; margin: 0 0 10px }
 .loading__lead { font: 400 15px/1.5 "IBM Plex Mono", monospace; color: #dbe3f7; margin: 0 0 28px }
-.loading__state { display: flex; justify-content: center; gap: 14px; font: 500 12px "IBM Plex Mono", monospace; letter-spacing: .14em;
+.loading__state { font: 500 12px "IBM Plex Mono", monospace; letter-spacing: .14em;
   text-transform: uppercase; color: #b9c8f0; margin: 0 0 18px; min-height: 1.3em }
-.loading__pct { font-variant-numeric: tabular-nums; color: #fff; min-width: 4ch; text-align: right }
 .loading__text { font: 500 13px "IBM Plex Mono", monospace; color: #fff; background: transparent; border: 1px solid rgba(255, 255, 255, .45); border-radius: 4px; padding: 8px 14px; cursor: pointer }
 .loading__text:hover { background: rgba(255, 255, 255, .1) }
 @media (prefers-reduced-motion: reduce) {
@@ -47,7 +41,7 @@ html, body { margin: 0; height: 100%; background: #050608; overflow: hidden }
   .loading[data-open="true"] { opacity: 0 }
 }
 
-/* la version texte : une page de cahier */
+/* la version sans JavaScript (noscript, générée au build) : une page de cahier */
 .eject { position: fixed; inset: 0; z-index: 8; overflow-y: auto; background: #f4f0e6; color: #26241f;
   background-image: repeating-linear-gradient(0deg, transparent 0 31px, rgba(140, 163, 222, .35) 31px 32px);
   opacity: 0; transition: opacity .5s }
@@ -72,3 +66,89 @@ html, body { margin: 0; height: 100%; background: #050608; overflow: hidden }
 
 /* sans JavaScript, la page de texte défile normalement */
 html:has(.eject--static) body { overflow: auto }
+
+/* le portfolio classique (bouton ÉJECTION)
+   Marque Enzo Dylan : une seule couleur signature, le bleu Klein (#002FA7), en champ
+   plein pour l'en-tête et le contact ; ailleurs, des neutres teintés vers ce bleu
+   (OKLCH, teinte 264). Contrastes (WCAG) : blanc sur Klein 10,7:1 ; encre sur papier
+   16,9:1 ; texte secondaire sur papier 7,9:1, sur fond teinté 7,2:1 ; texte secondaire
+   sur Klein 7:1. Chaque projet garde la couleur de son logo. */
+.site { --klein: #002fa7; --paper: oklch(0.975 0.006 264); --tint: oklch(0.945 0.013 264); --card: oklch(0.995 0.002 264);
+  --ink: oklch(0.2 0.035 264); --ink-2: oklch(0.42 0.03 264); --line: oklch(0.87 0.016 264); --on-klein-2: oklch(0.86 0.05 264);
+  position: fixed; inset: 0; z-index: 8; overflow-y: auto; overscroll-behavior: contain; background: var(--paper); color: var(--ink);
+  font: 400 17px/1.6 "Instrument Sans", system-ui, sans-serif;
+  transform: translateY(100%); transition: transform .7s cubic-bezier(.2, .8, .2, 1); will-change: transform }
+.site[data-on="true"] { transform: none }
+.site a { color: inherit }
+.site h1:focus { outline: none }
+.site__kicker { font: 600 12px/1 "IBM Plex Mono", monospace; letter-spacing: .2em; text-transform: uppercase; color: var(--klein); margin: 0 0 28px }
+.site__kicker--light { color: var(--on-klein-2) }
+
+.site__bar { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 24px; padding: 12px max(16px, calc(50% - 520px));
+  background: var(--klein); color: #fff }
+.site__brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font: 700 22px/1 "Barlow Condensed", sans-serif;
+  letter-spacing: .12em; text-transform: uppercase }
+.site__brand-logo { width: 34px; height: 34px }
+.site__nav { display: flex; gap: 22px; margin-left: auto; font: 500 13px "IBM Plex Mono", monospace }
+.site__nav a { text-decoration: none; color: var(--on-klein-2) }
+.site__nav a:hover { color: #fff }
+.site__cockpit { font: 500 13px "IBM Plex Mono", monospace; color: #fff; background: transparent; border: 1px solid rgba(255, 255, 255, .5);
+  border-radius: 4px; padding: 7px 12px; cursor: pointer }
+.site__cockpit:hover { background: rgba(255, 255, 255, .12) }
+
+.site__hero { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 40px; background: var(--klein); color: #fff;
+  padding: 72px max(16px, calc(50% - 520px)) 96px }
+.site__hero h1 { font: 700 clamp(56px, 11vw, 120px)/.92 "Barlow Condensed", sans-serif; letter-spacing: .04em; text-transform: uppercase; margin: 0 0 22px }
+.site__lead { font: 500 15px/1.5 "IBM Plex Mono", monospace; color: var(--on-klein-2); margin: 0 0 18px }
+.site__profile { font-size: clamp(20px, 2.4vw, 26px); line-height: 1.35; max-width: 26ch; margin: 0 0 36px }
+.site__hero-logo { width: clamp(160px, 24vw, 280px); height: auto }
+.site__actions { display: flex; flex-wrap: wrap; gap: 12px; margin: 0 }
+.site__btn { display: inline-block; font: 600 14px "IBM Plex Mono", monospace; text-decoration: none; border-radius: 4px; padding: 12px 18px; cursor: pointer; border: 1px solid transparent }
+.site .site__btn--white { background: #fff; color: var(--klein) }
+.site__btn--white:hover { background: var(--on-klein-2) }
+.site .site__btn--line { color: #fff; border-color: rgba(255, 255, 255, .55) }
+.site__btn--line:hover { background: rgba(255, 255, 255, .12) }
+
+.site__section { padding: 88px max(16px, calc(50% - 520px)) }
+.site__section--tint { background: var(--tint) }
+.site__project + .site__project { margin-top: 88px }
+.site__project-head { display: flex; flex-wrap: wrap; align-items: center; gap: 14px 16px; margin-bottom: 20px }
+.site__project-head img { border-radius: 9px }
+.site__project-head h3 { font: 700 40px/1 "Barlow Condensed", sans-serif; letter-spacing: .08em; text-transform: uppercase; margin: 0 }
+.site__stack { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0 0 0 auto; padding: 0 }
+.site__stack li { font: 500 12px "IBM Plex Mono", monospace; color: var(--ink-2); border: 1px solid var(--line); border-radius: 3px; padding: 3px 8px; background: var(--card) }
+.site__shot { margin: 0; border: 1px solid var(--line); border-top: 4px solid var(--brand); border-radius: 6px; overflow: hidden; background: var(--card) }
+.site__shot img { display: block; width: 100%; height: auto }
+.site__project-body { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px 40px; align-items: start; margin-top: 22px }
+.site__project-body p { margin: 0; max-width: 62ch }
+.site__repo { font: 500 14px "IBM Plex Mono", monospace; color: var(--klein) !important; text-underline-offset: 4px; white-space: nowrap }
+
+.site__skills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; list-style: none; margin: 0; padding: 0 }
+.site__skills li { background: var(--card); border: 1px solid var(--line); border-top: 2px solid var(--klein); border-radius: 4px; padding: 22px 22px 24px }
+.site__skills h3 { font: 700 24px/1.1 "Barlow Condensed", sans-serif; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 10px }
+.site__skills p { font-size: 15px; color: var(--ink-2); margin: 0 }
+
+.site__contact { background: var(--klein); color: #fff; padding: 88px max(16px, calc(50% - 520px)) 104px }
+.site__mail { display: inline-block; font: 700 clamp(30px, 6vw, 64px)/1.05 "Barlow Condensed", sans-serif; letter-spacing: .04em;
+  text-underline-offset: 8px; text-decoration-thickness: 2px; overflow-wrap: anywhere; margin-bottom: 14px }
+.site__contact p { font: 500 15px "IBM Plex Mono", monospace; margin: 0 0 36px }
+.site__contact p a { color: var(--on-klein-2) }
+
+@media (max-width: 760px) {
+  .site__nav { display: none }
+  .site__bar { gap: 12px }
+  .site__brand { font-size: 18px; white-space: nowrap }
+  .site__brand-logo { width: 28px; height: 28px }
+  .site__cockpit { margin-left: auto; white-space: nowrap; font-size: 12px; padding: 6px 10px }
+  .site__hero { grid-template-columns: 1fr; padding-top: 48px; padding-bottom: 64px }
+  .site__hero-logo { display: none }
+  .site__section, .site__contact { padding-top: 64px; padding-bottom: 64px }
+  .site__stack { margin-left: 0; width: 100% }
+  .site__project-body { grid-template-columns: 1fr }
+  .site__skills { grid-template-columns: 1fr }
+}
+@media (min-width: 761px) and (max-width: 1000px) { .site__skills { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
+@media (prefers-reduced-motion: reduce) {
+  .site { transform: none; opacity: 0; transition: opacity .3s }
+  .site[data-on="true"] { opacity: 1 }
+}

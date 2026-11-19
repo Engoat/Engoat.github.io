@@ -13,8 +13,8 @@ export type CaptionItem =
 export interface UiBridge {
   /** barre du bas : texte, liens et boutons ; null la cache */
   setCaption(items: CaptionItem[] | null): void;
-  /** ouvre la version texte (bouton ÉJECTION) */
-  openText(): void;
+  /** ouvre le portfolio classique (bouton ÉJECTION) */
+  openSite(): void;
   /** phrase lue par les lecteurs d'écran (voix de la tour de contrôle) */
   announce(text: string): void;
   /** avancement réel du chargement (0 à 1) et étape en cours */

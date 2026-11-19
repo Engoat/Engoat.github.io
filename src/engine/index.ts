@@ -24,7 +24,7 @@ export interface Cockpit {
   act(key: string): void;
   /** lance la séquence d'allumage (une seule fois) */
   boot(): void;
-  textClosed(): void;
+  siteClosed(): void;
   dispose(): void;
 }
 
@@ -166,18 +166,18 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
   addEventListener("keydown", onKey);
   const act = (key: string) => (key === "next" ? director.next() : commands.act(key));
 
-  const onResize = () => { head.resize(innerWidth, innerHeight); placeHandsAtRest(ctx); };
+  let held = true;
+  const onResize = () => {
+    head.resize(innerWidth, innerHeight); placeHandsAtRest(ctx);
+    if (held) renderer.render(scene, camera);
+  };
   addEventListener("resize", onResize);
   head.resize(innerWidth, innerHeight);
 
   /* --- boucle de rendu --- */
   const timer = new THREE.Timer();
   let raf = 0;
-  function frame(now: number) {
-    timer.update(now);
-    const t = timer.getElapsed();
-    let dt = Math.min(timer.getDelta(), 0.05);
-    if (window.__manual) { dt = window.__pending ?? 0; window.__pending = 0; }
+  function update(t: number, dt: number) {
     ctx.anim.step(dt);
     updatePanel(ctx, t, dt);
     travel.update(dt);
@@ -185,11 +185,33 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
     updateLights(ctx, dt);
     for (const h of Object.values(ctx.hands)) updateArm(h);
     director.update(dt);
-    renderer.render(scene, camera);
+  }
+  function frame(now: number) {
+    timer.update(now);
+    const t = timer.getElapsed();
+    let dt = Math.min(timer.getDelta(), 0.05);
+    if (window.__manual) { dt = window.__pending ?? 0; window.__pending = 0; }
+    update(t, dt);
+    // pendant l'ouverture de l'iris, le cockpit éteint reste sur la première image
+    if (!held) renderer.render(scene, camera);
     raf = requestAnimationFrame(frame);
   }
-  // les shaders sont compilés pendant l'écran de chargement, pas à la première image
+  /* Tout ce que la première image coûte est payé pendant l'écran de chargement (dont le
+     dessin tourne dans un worker, il ne se fige pas) : shaders, puis textures envoyées
+     une à une à la carte graphique, puis une première image. */
+  update(0, 0);   // mains, aiguilles et caméra à leur place avant la première image
   await renderer.compileAsync(scene, camera);
+  await step(0.92, "Envoi à la carte graphique");
+  const textures = new Set<THREE.Texture>();
+  scene.traverse((o) => {
+    const m = (o as THREE.Mesh).material;
+    if (!m) return;
+    for (const mat of ([] as THREE.Material[]).concat(m))
+      for (const v of Object.values(mat)) if ((v as THREE.Texture | null)?.isTexture) textures.add(v as THREE.Texture);
+  });
+  for (const t of textures) { renderer.initTexture(t); await new Promise((r) => setTimeout(r, 0)); }
+  await step(0.97, "Première image");
+  renderer.render(scene, camera);
   ui.progress(1, "Prêt");
   raf = requestAnimationFrame(frame);
   window.__ready = true;
@@ -197,13 +219,16 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
   /* l'allumage part quand l'écran de chargement s'est ouvert sur le cockpit (l'interface
      appelle boot) ; s'il ne l'a pas fait au bout de 6 s, il part de lui-même */
   let booted = false;
-  const boot = () => { if (!booted && ctx.boot) { booted = true; void commands.boot(); } };
+  const boot = () => {
+    held = false;
+    if (!booted && ctx.boot) { booted = true; void commands.boot(); }
+  };
   const bootTimer = setTimeout(boot, 6000);
 
   return {
     act,
     boot,
-    textClosed: commands.textClosed,
+    siteClosed: commands.siteClosed,
     dispose() {
       cancelAnimationFrame(raf);
       clearTimeout(bootTimer);

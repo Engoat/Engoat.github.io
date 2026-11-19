@@ -10,7 +10,9 @@ export class TextureFactory {
   canvas(w: number, h: number, draw: Draw, srgb = true): THREE.CanvasTexture {
     const c = document.createElement("canvas");
     c.width = w; c.height = h;
-    const g = c.getContext("2d")!;
+    /* dessin sur le processeur (willReadFrequently) : un canevas accéléré remet son
+       dessin à plus tard, au processus graphique, qui figeait alors tout l'affichage */
+    const g = c.getContext("2d", { willReadFrequently: true })!;
     draw(g, w, h);
     const t = new THREE.CanvasTexture(c);
     if (srgb) t.colorSpace = THREE.SRGBColorSpace;

@@ -1,5 +1,6 @@
-/* Tout le contenu du portfolio, en un seul endroit : la version texte, l'écran de
-   chargement et les rubans imprimés du cockpit le lisent ici. Rien n'est dupliqué. */
+/* Tout le contenu du portfolio, en un seul endroit : le portfolio classique, l'écran de
+   chargement, les rubans imprimés du cockpit et la version sans JavaScript le lisent ici.
+   Rien n'est dupliqué. */
 
 export const GITHUB = "https://github.com/Engoat";
 export const EMAIL = "enzoprog25@gmail.com";
@@ -27,7 +28,15 @@ export const SKILLS: Skill[] = [
 export const SKILL_LINES = ["TypeScript · React · Vite", "Python · FastAPI · pandas", "Java · Spring Boot", "SQL · PostgreSQL", "Git"];
 
 export type ProjectKey = "nexus" | "crible";
-export interface Project { key: ProjectKey; name: string; text: string; slip: string; repo: string }
+export interface Project {
+  key: ProjectKey; name: string; text: string; slip: string; repo: string;
+  /** bibliothèques réellement utilisées (package.json du projet) */
+  stack: string[];
+  /** couleur signature de la marque du projet */
+  color: string;
+  /** capture de l'application (public/assets/projects) et sa description */
+  shot: { src: string; alt: string };
+}
 
 export const PROJECTS: Project[] = [
   {
@@ -36,6 +45,9 @@ export const PROJECTS: Project[] = [
     text: "Atelier d'algorithmes de graphes et de files d'attente : on dessine un graphe, on choisit un algorithme parmi huit et on le suit étape par étape. Un second atelier simule une file d'attente et en calcule les mesures.",
     slip: "Atelier pour apprendre les algorithmes de graphes (8 algorithmes) et simuler des files d'attente.",
     repo: `${GITHUB}/nexus`,
+    stack: ["TypeScript", "React", "Vite"],
+    color: "#6b2bd9",
+    shot: { src: "nexus", alt: "Nexus : l'algorithme de Dijkstra en cours sur un graphe de cinq sommets, étape 7 sur 22, avec les invariants vérifiés à cette étape." },
   },
   {
     key: "crible",
@@ -43,6 +55,9 @@ export const PROJECTS: Project[] = [
     text: "Contrôle de la qualité d'un fichier CSV ou Excel, dans le navigateur : on écrit des règles (douze types), on remonte aux lignes en défaut et on exporte un rapport. Des contrôles pour le machine learning (fuite de cible, écart entre entraînement et test) complètent l'outil.",
     slip: "Contrôle de la qualité d'un fichier CSV ou Excel : règles, lignes en défaut, rapport.",
     repo: `${GITHUB}/crible`,
+    stack: ["TypeScript", "React", "Vite", "DuckDB-WASM", "SheetJS"],
+    color: "#e8432a",
+    shot: { src: "crible", alt: "Crible : tableau de bord sur titanic.csv (891 lignes) ; la règle « Age ≥ 0 et ≤ 60 » échoue sur 22 lignes, listées en dessous." },
   },
 ];
 
