@@ -21,14 +21,31 @@ html, body { margin: 0; height: 100%; background: #050608; overflow: hidden }
 .caption button:hover { background: #34383b }
 
 /* l'écran de chargement */
-.loading { position: fixed; inset: 0; display: grid; place-items: center; background: #050608; transition: opacity .8s; z-index: 6; padding: 0 16px }
-.loading[data-done="true"] { opacity: 0; pointer-events: none }
+/* champ bleu Klein (#002FA7) de la marque Enzo Dylan, logo blanc ; à la fin, un iris
+   s'ouvre depuis la planète du logo (--r grandit dans le masque) */
+@property --r { syntax: "<length>"; inherits: false; initial-value: 0px }
+.loading { --klein: #002fa7; position: fixed; inset: 0; display: grid; place-items: center; background: var(--klein);
+  z-index: 6; padding: 0 16px; --r: 0px;
+  mask: radial-gradient(circle at var(--cx, 50%) var(--cy, 40%), transparent var(--r), #000 calc(var(--r) + 1px));
+  transition: --r 1.4s cubic-bezier(.75, 0, .2, 1) }
+.loading[data-open="true"] { --r: 160vmax; pointer-events: none }
 .loading__card { text-align: center }
-.loading__name { font: 700 clamp(40px, 8vw, 64px)/1 "Barlow Condensed", sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #ece6d4; margin: 0 0 10px }
-.loading__lead { font: 400 15px/1.5 "IBM Plex Mono", monospace; color: #b9b4a6; margin: 0 0 28px }
-.loading__state { font: 500 12px "IBM Plex Mono", monospace; letter-spacing: .14em; text-transform: uppercase; color: #7c8079; margin: 0 0 18px }
-.loading__text { font: 500 13px "IBM Plex Mono", monospace; color: #e9e4d4; background: transparent; border: 1px solid #4a4e52; border-radius: 4px; padding: 8px 14px; cursor: pointer }
-.loading__text:hover { background: #1c1f22 }
+.loading__orbit { width: clamp(120px, 22vw, 200px); height: auto; display: block; margin: 0 auto 18px; overflow: visible }
+.loading__arc { fill: none; stroke: #fff; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1 1 }
+.loading__gap { fill: none; stroke: var(--klein); stroke-width: 8; stroke-linecap: round; stroke-dasharray: 1 1 }
+.loading__planet { fill: #fff }
+.loading__sat { fill: #fff; stroke: var(--klein); stroke-width: 3 }
+.loading__name { font: 700 clamp(40px, 8vw, 64px)/1 "Barlow Condensed", sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #fff; margin: 0 0 10px }
+.loading__lead { font: 400 15px/1.5 "IBM Plex Mono", monospace; color: #dbe3f7; margin: 0 0 28px }
+.loading__state { display: flex; justify-content: center; gap: 14px; font: 500 12px "IBM Plex Mono", monospace; letter-spacing: .14em;
+  text-transform: uppercase; color: #b9c8f0; margin: 0 0 18px; min-height: 1.3em }
+.loading__pct { font-variant-numeric: tabular-nums; color: #fff; min-width: 4ch; text-align: right }
+.loading__text { font: 500 13px "IBM Plex Mono", monospace; color: #fff; background: transparent; border: 1px solid rgba(255, 255, 255, .45); border-radius: 4px; padding: 8px 14px; cursor: pointer }
+.loading__text:hover { background: rgba(255, 255, 255, .1) }
+@media (prefers-reduced-motion: reduce) {
+  .loading { transition: opacity .4s }
+  .loading[data-open="true"] { opacity: 0 }
+}
 
 /* la version texte : une page de cahier */
 .eject { position: fixed; inset: 0; z-index: 8; overflow-y: auto; background: #f4f0e6; color: #26241f;

@@ -17,6 +17,8 @@ export interface UiBridge {
   openText(): void;
   /** phrase lue par les lecteurs d'écran (voix de la tour de contrôle) */
   announce(text: string): void;
+  /** avancement réel du chargement (0 à 1) et étape en cours */
+  progress(k: number, step: string): void;
 }
 
 /* --- pièces du cockpit ----------------------------------------------------- */

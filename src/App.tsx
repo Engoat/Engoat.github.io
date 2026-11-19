@@ -17,6 +17,8 @@ export function App() {
   const [caption, setCaption] = useState<CaptionItem[] | null>(null);
   const [textOpen, setTextOpen] = useState(false);
   const [voice, setVoice] = useState("");
+  // avant que le moteur ne parle, on télécharge son code (Three.js compris)
+  const [load, setLoad] = useState({ k: 0.04, step: "Téléchargement du cockpit" });
 
   useEffect(() => {
     let cancelled = false;
@@ -25,6 +27,7 @@ export function App() {
         setCaption,
         openText: () => setTextOpen(true),
         announce: setVoice,
+        progress: (k, step) => setLoad({ k, step }),
       }))
       .then((c) => {
         if (cancelled) { c.dispose(); return; }
@@ -44,6 +47,9 @@ export function App() {
     cockpit.current?.act(key);
   }, []);
 
+  // l'écran de chargement s'est ouvert sur le cockpit éteint : on l'allume
+  const opened = useCallback(() => cockpit.current?.boot(), []);
+
   const closeText = useCallback(() => {
     setTextOpen(false);
     cockpit.current?.textClosed();
@@ -52,7 +58,8 @@ export function App() {
   return (
     <>
       <canvas ref={canvasRef} className="cockpit" aria-label="Cockpit du vaisseau, vu depuis le siège du pilote" />
-      <Loading done={ready} failed={failed} onText={() => setTextOpen(true)} />
+      <Loading progress={load.k} step={load.step} done={ready} failed={failed}
+        onText={() => setTextOpen(true)} onOpened={opened} />
       <KeyboardNav onAct={act} />
       <CaptionBar items={caption} />
       <TextVersion open={textOpen} onClose={failed ? undefined : closeText} />

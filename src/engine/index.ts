@@ -22,6 +22,8 @@ import { createHead } from "./camera";
 /** ce que l'interface React peut demander au cockpit */
 export interface Cockpit {
   act(key: string): void;
+  /** lance la séquence d'allumage (une seule fois) */
+  boot(): void;
   textClosed(): void;
   dispose(): void;
 }
@@ -61,8 +63,16 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
   camera.position.copy(camHome.pos);
   camera.lookAt(camHome.look);
 
+  /* avancement réel, annoncé à l'écran de chargement ; la courte pause laisse le
+     navigateur afficher l'étape avant le calcul suivant, qui bloque le fil */
+  const step = async (k: number, label: string) => {
+    ui.progress(k, label);
+    await new Promise((r) => setTimeout(r, 40));
+  };
+  await step(0.12, "Polices de bord");
   // les textures écrites au canevas ont besoin des polices
   await Promise.all(FONTS.map((f) => document.fonts.load(f)));
+  await step(0.2, "Peinture des planètes");
 
   const ctx = {
     canvas, renderer, scene, camera, ui, params, reduced,
@@ -75,16 +85,20 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
   } as Ctx;
 
   buildSpace(ctx);
+  await step(0.4, "Assemblage de la cabine");
   buildLights(ctx);
   buildCabin(ctx);
   buildPanel(ctx);
   buildConsoles(ctx);
   buildDetails(ctx);
+  await step(0.55, "Gants et combinaison");
   const [gR, gL] = await handsP;
   buildHands(ctx, gR, gL);
+  await step(0.68, "Usure des matières");
   // matières usées calculées dans Blender (sans elles, le cockpit garde ses couleurs unies)
   if (params.has("export")) (window as unknown as Record<string, unknown>).__exportWear = () => exportWearable(ctx);
   else if (!params.has("nowear")) await applyWear(ctx);
+  await step(0.84, "Réglage des instruments");
 
   const slip = createSlip(ctx);
   let commands: ReturnType<typeof createCommands>;
@@ -124,9 +138,16 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
     const wall = ray.intersectObjects(blockers, false)[0];
     return wall && wall.distance < hit.distance ? null : hit.object.userData.planet;
   }
-  const onMove = (e: PointerEvent) => { aim(e); canvas.classList.toggle("hot", !!pickButton() || !!pickPlanet()); };
+  // « Suivant », dessiné sur la vitre sous le texte de la tour de contrôle
+  function pickNext() {
+    if (!director.hud.mesh.visible) return false;
+    const hit = ray.intersectObject(director.hud.mesh, false)[0];
+    return !!hit?.uv && director.hud.hitsNext(hit.uv);
+  }
+  const onMove = (e: PointerEvent) => { aim(e); canvas.classList.toggle("hot", pickNext() || !!pickButton() || !!pickPlanet()); };
   const onClick = (e: MouseEvent) => {
     aim(e);
+    if (pickNext()) { director.next(); return; }
     const key = pickButton();
     if (key) { commands.act(key); return; }
     const planet = pickPlanet();
@@ -134,6 +155,16 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
   };
   canvas.addEventListener("pointermove", onMove);
   canvas.addEventListener("click", onClick);
+  // au clavier : → ou Entrée font avancer la visite (sauf si un bouton de la page a le focus)
+  const onKey = (e: KeyboardEvent) => {
+    if (!director.state.active || (e.key !== "ArrowRight" && e.key !== "Enter")) return;
+    const el = document.activeElement;
+    if (el && el !== document.body && el !== canvas) return;
+    e.preventDefault();
+    director.next();
+  };
+  addEventListener("keydown", onKey);
+  const act = (key: string) => (key === "next" ? director.next() : commands.act(key));
 
   const onResize = () => { head.resize(innerWidth, innerHeight); placeHandsAtRest(ctx); };
   addEventListener("resize", onResize);
@@ -159,18 +190,26 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
   }
   // les shaders sont compilés pendant l'écran de chargement, pas à la première image
   await renderer.compileAsync(scene, camera);
+  ui.progress(1, "Prêt");
   raf = requestAnimationFrame(frame);
   window.__ready = true;
-  window.__dbg = { ctx, act: commands.act, travel, director };
-  if (ctx.boot) void commands.boot();
+  window.__dbg = { ctx, act, travel, director, boot: () => boot() };
+  /* l'allumage part quand l'écran de chargement s'est ouvert sur le cockpit (l'interface
+     appelle boot) ; s'il ne l'a pas fait au bout de 6 s, il part de lui-même */
+  let booted = false;
+  const boot = () => { if (!booted && ctx.boot) { booted = true; void commands.boot(); } };
+  const bootTimer = setTimeout(boot, 6000);
 
   return {
-    act: commands.act,
+    act,
+    boot,
     textClosed: commands.textClosed,
     dispose() {
       cancelAnimationFrame(raf);
+      clearTimeout(bootTimer);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("click", onClick);
+      removeEventListener("keydown", onKey);
       removeEventListener("resize", onResize);
       renderer.dispose();
     },

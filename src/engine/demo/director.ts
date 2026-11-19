@@ -38,36 +38,34 @@ export function createDirector(ctx: Ctx, hooks: DirectorHooks) {
   const s = { target: "nexus" as ProjectKey, active: false, finished: false, token: 0 };
   const name = (k: ProjectKey) => ctx.planets[k].name;
 
-  /* La visite avance seule, mais le visiteur garde la main : « Suivant » termine
-     l'étape en cours, le compteur dit ce qui reste, « Passer » va à la fin. */
+  /* La visite va au rythme du visiteur : rien n'avance seul. « Suivant », sous le texte
+     de la tour, finit d'écrire la phrase puis passe à la suivante ; la barre du bas
+     garde « Passer la visite » et « Revenir au cockpit ». */
   function caption(final: boolean) {
     const items: CaptionItem[] = final
       ? [{ kind: "button", label: "Revoir la visite", onClick: () => { void start(s.target); } }]
-      : [
-          { kind: "text", text: `Étape ${Math.max(hud.state.step, 1)} / ${scripts[s.target].steps}` },
-          { kind: "button", label: "Suivant", onClick: next },
-          { kind: "button", label: "Passer la visite", onClick: finish },
-        ];
+      : [{ kind: "button", label: "Passer la visite", onClick: finish }];
     items.push({ kind: "button", label: "Revenir au cockpit", onClick: hooks.back });
     ctx.ui.setCaption(items);
   }
-  hud.onStep = () => { if (s.active && !s.finished) caption(false); };
 
   function next() {
     if (!s.active || s.finished) return;
-    scripts[s.target].skip?.();
-    hud.state.skipped = hud.state.step;      // l'étape entière : écriture et temps de lecture
-    ctx.anim.rush();
+    // pendant l'écriture : la file d'attente de Nexus saute à l'instant attendu
+    if (hud.state.typing) scripts[s.target].skip?.();
+    hud.next();
   }
 
   async function start(target: ProjectKey) {
     const tok = ++s.token;
+    hud.cancel();                     // une phrase d'une visite précédente ne reste pas en attente
     s.target = target;
     s.active = true; s.finished = false;
     for (const sc of Object.values(scripts)) sc.stop();
     const script = scripts[target];
     script.reset();
     hud.state.step = 0;
+    hud.state.steps = script.steps;
     hud.state.title = `TOUR DE CONTRÔLE · ${name(target)}`;
     hud.mesh.visible = true;
     hud.state.dirty = true;
@@ -80,17 +78,20 @@ export function createDirector(ctx: Ctx, hooks: DirectorHooks) {
     if (!s.active || s.finished) return;
     s.token++;
     s.finished = true;
+    hud.cancel();
     scripts[s.target].finish();
     hud.state.title = name(s.target);
+    hud.state.steps = 0;              // plus de compteur ni de « Suivant »
     hud.state.dirty = true;
     const pretty = s.target === "nexus" ? "Nexus" : "Crible";
-    void hud.say(`Atterrissage accordé. Bon séjour sur ${pretty}.`);
+    void hud.say(`Atterrissage accordé. Bon séjour sur ${pretty}.`, false);
     caption(true);
   }
 
   function stop() {
     s.token++;
     s.active = false; s.finished = false;
+    hud.cancel();
     hud.mesh.visible = false;
     scripts[s.target].stop();
   }

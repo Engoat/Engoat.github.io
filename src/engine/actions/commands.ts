@@ -64,7 +64,8 @@ export function createCommands(ctx: Ctx, slip: Slip, travel: Travel) {
   function boot() {
     const { power, anim } = ctx;
     return exclusive("boot", async () => {
-      await anim.wait(0.9);
+      // un temps dans le noir, une fois l'écran de chargement ouvert
+      await anim.wait(0.6);
       await pressButton(ctx, "lights");
       power.k = 1;
       for (const [d, v] of [[0.05, 0.7], [0.07, 0], [0.05, 0.9], [0.12, 0.15], [0.06, 1], [0.05, 0.4], [0.35, 1]]) {

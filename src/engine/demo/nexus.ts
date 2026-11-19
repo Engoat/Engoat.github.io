@@ -151,16 +151,16 @@ export function createNexusDemo(ctx: Ctx, hud: Hud): DemoScript {
   }
 
   async function run(ok: () => boolean) {
-    await hud.say("Bienvenue sur Nexus, un atelier pour apprendre l'algorithmique en regardant les algorithmes travailler, étape par étape.", 1.4);
+    await hud.say("Bienvenue sur Nexus, un atelier pour apprendre l'algorithmique en regardant les algorithmes travailler, étape par étape.");
     if (!ok()) return false;
     s.card = true;
-    await hud.say("Avant de te poser, tu fais la queue au guichet : c'est l'atelier des files d'attente de Nexus, simulé arrivée après arrivée.", 0.8);
+    await hud.say("Avant de te poser, tu fais la queue au guichet : c'est l'atelier des files d'attente de Nexus, simulé arrivée après arrivée.");
     if (!ok()) return false;
     // la file avance jusqu'à notre tour, en accéléré
     s.speed = (me.start - me.arrive) / 10;
     s.milestone = me.start;
     s.playing = true;
-    await hud.say("Les files d'attente relèvent des probabilités ; la recherche opérationnelle s'en sert pour dimensionner guichets et réseaux.", 1);
+    await hud.say("Les files d'attente relèvent des probabilités ; la recherche opérationnelle s'en sert pour dimensionner guichets et réseaux.");
     if (!ok()) return false;
     await hud.say("Combien de temps avant ton tour ? La loi de Little relie la longueur moyenne de la file Lq au rythme des arrivées λ : l'attente moyenne vaut Wq = Lq / λ.");
     if (!ok()) return false;
@@ -180,7 +180,7 @@ export function createNexusDemo(ctx: Ctx, hud: Hud): DemoScript {
     hud.state.title = "NEXUS · EN BREF";
     for (let i = 0; i < FEATURES.length; i++) {
       s.feat = i; hud.state.dirty = true;
-      await hud.say(FEATURES[i].text, 1.2);
+      await hud.say(FEATURES[i].text);
       if (!ok()) return false;
     }
     return true;

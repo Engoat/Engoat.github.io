@@ -52,31 +52,31 @@ export function createCribleDemo(ctx: Ctx, hud: Hud): DemoScript {
   const anim = (dur: number, fn: (k: number) => void) => ctx.anim.tween(dur, (k) => { fn(k); hud.state.dirty = true; });
 
   async function run(ok: () => boolean) {
-    await hud.say("Bienvenue sur Crible. Il contrôle la qualité d'un jeu de données avant qu'on l'exploite en analyse ou en machine learning.", 1.2);
+    await hud.say("Bienvenue sur Crible. Il contrôle la qualité d'un jeu de données avant qu'on l'exploite en analyse ou en machine learning.");
     if (!ok()) return false;
     c.on = true;
     let a = anim(1.8, (k) => { c.cols = Math.round(k * COLS.length); });
-    await hud.say("Tu charges un fichier CSV ou Excel. Il est lu dans ton navigateur : rien n'est envoyé nulle part.", 0.8);
+    await hud.say("Tu charges un fichier CSV ou Excel. Il est lu dans ton navigateur : rien n'est envoyé nulle part.");
     if (!ok()) return false;
     await a;
     c.sel = true; c.form = true;
     a = anim(2.4, (k) => { c.typed = k; });
-    await hud.say("Tu écris les règles que les données doivent respecter, depuis la fiche de chaque colonne : ici, un âge compris entre 0 et 60 ans.", 0.6);
+    await hud.say("Tu écris les règles que les données doivent respecter, depuis la fiche de chaque colonne : ici, un âge compris entre 0 et 60 ans.");
     if (!ok()) return false;
     await a;
     c.form = false; c.rule = 1; c.run = 0;
     a = anim(1.6, (k) => { c.run = k; c.badge = k >= 1; });
-    await hud.say("Crible exécute la règle et rend son verdict : 22 lignes en défaut sur 714 évaluées.", 0.5);
+    await hud.say("Crible exécute la règle et rend son verdict : 22 lignes en défaut sur 714 évaluées.");
     if (!ok()) return false;
     await a;
     a = anim(1.6, (k) => { c.rows = Math.round(k * ROWS.length); });
-    await hud.say("Un clic ouvre les lignes en défaut, avec la cellule en cause surlignée.", 0.8);
+    await hud.say("Un clic ouvre les lignes en défaut, avec la cellule en cause surlignée.");
     if (!ok()) return false;
     await a;
     hud.state.title = "CRIBLE · EN BREF";
     for (let i = 0; i < BRIEF.length; i++) {
       c.brief = i; hud.state.dirty = true;
-      await hud.say(BRIEF[i].text, 1.2);
+      await hud.say(BRIEF[i].text);
       if (!ok()) return false;
     }
     return true;

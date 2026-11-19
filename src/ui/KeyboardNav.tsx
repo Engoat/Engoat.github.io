@@ -8,6 +8,7 @@ const COMMANDS: [string, string][] = [
   ["engage_nexus", "Engager vers Nexus"],
   ["engage_crible", "Engager vers Crible"],
   ...SKILLS.map((s): [string, string] => [s.key, s.title]),
+  ["next", "Visite : phrase suivante"],
   ["lights", "Feux cabine"],
   ["eject", "Version texte"],
 ];
