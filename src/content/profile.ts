@@ -27,7 +27,7 @@ export const SKILLS: Skill[] = [
 /* lignes courtes pour le ruban du dossier */
 export const SKILL_LINES = ["TypeScript · React · Vite", "Python · FastAPI · pandas", "Java · Spring Boot", "SQL · PostgreSQL", "Git"];
 
-export type ProjectKey = "nexus" | "crible" | "alea";
+export type ProjectKey = "nexus" | "crible";
 export interface Project {
   key: ProjectKey; name: string; text: string; slip: string; repo: string;
   /** bibliothèques réellement utilisées (package.json du projet) */
@@ -62,18 +62,6 @@ export const PROJECTS: Project[] = [
     color: "#e8432a",
     icon: true,
     shot: { src: "crible", alt: "Crible : tableau de bord sur titanic.csv (891 lignes) ; la règle « Age ≥ 0 et ≤ 60 » échoue sur 22 lignes, listées en dessous." },
-  },
-  {
-    key: "alea",
-    name: "Aléa",
-    text: "Application mobile de hasard, écrite en React Native. Des dés pour les jeux de rôle, avec la notation complète (3d6+2, 4d6kh3, d6!) et la probabilité exacte de chaque résultat ; des tirages au sort (roue, cartes, équipes équilibrées, sans remise) que n'importe qui peut vérifier pour s'assurer qu'ils ne sont pas truqués.",
-    slip: "Application mobile : dés de jeu de rôle avec probabilité exacte, et tirages au sort vérifiables.",
-    repo: `${GITHUB}/alea`,
-    stack: ["TypeScript", "React Native", "Expo"],
-    // pas encore de couleur signature (séance logo à venir) : l'encre de l'application
-    color: "#1b1a17",
-    icon: false,
-    shot: { src: "alea", alt: "Aléa, trois écrans : le lancer 4d6kh3 avec ses dés, son total et sa loi de probabilité ; la roue d'un tirage au sort avec sa preuve ; la vérification d'un tirage." },
   },
 ];
 

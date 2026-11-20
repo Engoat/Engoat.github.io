@@ -3,7 +3,6 @@ import { PROJECTS, type ProjectKey } from "../../content/profile";
 import { createHud } from "./hud";
 import { createNexusDemo } from "./nexus";
 import { createCribleDemo } from "./crible";
-import { createAleaDemo } from "./alea";
 
 /** ce qu'une démo de projet doit fournir au metteur en scène */
 export interface DemoScript {
@@ -35,7 +34,6 @@ export function createDirector(ctx: Ctx, hooks: DirectorHooks) {
   const scripts: Record<ProjectKey, DemoScript> = {
     nexus: createNexusDemo(ctx, hud),
     crible: createCribleDemo(ctx, hud),
-    alea: createAleaDemo(ctx, hud),
   };
   const s = { target: "nexus" as ProjectKey, active: false, finished: false, token: 0 };
   const name = (k: ProjectKey) => ctx.planet(k).name;

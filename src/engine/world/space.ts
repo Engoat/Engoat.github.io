@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { Ctx, Planet } from "../types";
 import type { ProjectKey } from "../../content/profile";
-import { paintAlea, paintCrible, paintNexus } from "./painters";
+import { paintCrible, paintNexus } from "./painters";
 import { GLSL_NOISE } from "./noise.glsl";
 
 /** soleil des planètes, venu de la gauche : on les voit à moitié éclairées (premier quartier) */
@@ -122,12 +122,11 @@ const atmosphereMaterial = (look: Look) => new THREE.ShaderMaterial({
 interface PlanetSpec { name: string; paint: (g: CanvasRenderingContext2D, W: number, H: number) => void; look: Look; radius: number; tilt: [number, number, number] }
 
 // atmosphère de Nexus : violet de l'arbre (#6B2BD9) éclairci par la diffusion ; Crible : une poussière
-// chaude tirée de son vermillon (#E8432A), comme le ciel de Mars ; Aléa : un voile de papier
-// (#F6F5F1) à peine grisé. Lumières de nuit : sodium (l'encre colorée de Nexus et de Crible).
+// chaude tirée de son vermillon (#E8432A), comme le ciel de Mars.
+// Lumières de nuit : sodium (l'encre colorée de Nexus et de Crible).
 const SPECS: Record<ProjectKey, PlanetSpec> = {
   nexus: { name: "NEXUS", paint: paintNexus, look: { atmo: 0x9a86e8, lights: 0xffb35c, seed: 1.7 }, radius: 24, tilt: [0.32, 2.2, 0.18] },
   crible: { name: "CRIBLE", paint: paintCrible, look: { atmo: 0xe9a07e, lights: 0xffa35a, seed: 7.3 }, radius: 19, tilt: [0.2, 0.7, -0.1] },
-  alea: { name: "ALÉA", paint: paintAlea, look: { atmo: 0xcfc9b8, lights: 0xe8e2d0, seed: 4.1 }, radius: 22, tilt: [0.26, 4.4, 0.08] },
 };
 
 /** là où se pose la planète choisie : à droite du centre du hublot */
