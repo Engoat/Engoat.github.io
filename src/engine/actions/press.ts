@@ -8,7 +8,7 @@ import { ease } from "../util/tween";
 function pressFrame(h: Hand, b: Button) {
   // normale de la face où se trouve la commande (planche ou aile)
   const n = new THREE.Vector3(0, 0, 1).applyQuaternion(b.cap.getWorldQuaternion(new THREE.Quaternion()));
-  const target = b.cap.getWorldPosition(new THREE.Vector3()).addScaledVector(n, b.kind ? 0.004 : 0.012);
+  const target = b.cap.getWorldPosition(new THREE.Vector3()).addScaledVector(n, b.kind === "pad" ? (b.cap.geometry as THREE.SphereGeometry).parameters.radius : b.kind ? 0.004 : 0.012);
   const d = n.clone().negate();
   const yawN = Math.atan2(-d.x, -d.z), pitchN = Math.asin(THREE.MathUtils.clamp(d.y, -1, 1));
   // la main se tourne vers l'intérieur : l'avant-bras arrive de côté, coude écarté,
@@ -38,10 +38,10 @@ export async function pressButton(ctx: Ctx, key: string) {
     await ctx.anim.tween(0.25, (k) => { hinge.rotation.x = h0 + (-1.5 - h0) * ease(k); });
   }
   await moveHand(ctx, h, f.press, f.q, POSES.point, 0.13);
-  if (b.kind) {
+  if (b.kind === "toggle" || b.kind === "guard") {
     const lever = b.lever, l0 = lever.rotation.x, l1 = -l0;
     ctx.anim.tween(0.12, (k) => { lever.rotation.x = l0 + (l1 - l0) * k; });
-  } else {
+  } else if (!b.kind) {
     b.depth = 1;
   }
   await ctx.anim.wait(0.09);

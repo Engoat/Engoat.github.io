@@ -3,7 +3,6 @@ import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.j
 import type { Ctx, PushButton, SwitchButton } from "../types";
 import { mat } from "../util/textures";
 import { shadowy, twoGroups } from "../util/geometry";
-import { NAV } from "./navscreen";
 
 export const PANEL_TILT = -0.62;
 
@@ -26,6 +25,7 @@ export function buildPanel(ctx: Ctx) {
   ctx.buttons = {};
   ctx.needles = [];
   ctx.gaugeFaces = [];
+  ctx.switchGlow = { labels: [], leds: [] };
 
   panel.add(shadowy(new THREE.Mesh(new RoundedBoxGeometry(0.9, 0.46, 0.06, 4, 0.014), M.paint)));
   const wings: Record<-1 | 1, THREE.Group> = { [-1]: new THREE.Group(), 1: new THREE.Group() };
@@ -135,24 +135,18 @@ export function buildPanel(ctx: Ctx) {
     ctx.buttons[key] = b;
     return b;
   }
-  /* la rangée de commandes de navigation : choisir le projet (précédent, suivant) sur
-     l'écran, puis ENGAGER */
-  korry(panel, "dossier", -0.215, -0.155, ["DOSSIER"], { w: 0.076 });
-  korry(panel, "nav_prev", -0.122, -0.155, ["PROJET", "PRÉC."], { w: 0.076 });
-  korry(panel, "engage", 0, -0.155, ["ENGAGER"], { w: 0.092, h: 0.072, striped: true });
-  korry(panel, "nav_next", 0.122, -0.155, ["PROJET", "SUIV."], { w: 0.076 });
-  korry(panel, "contact", 0.215, -0.155, ["CONTACT"], { w: 0.076 });
+  /* le gros bouton, au centre : il fait sortir la maquette des planètes (voir world/orrery.ts) */
+  korry(panel, "planetes", 0, -0.15, ["PLANÈTES"], { w: 0.15, h: 0.094, striped: true });
+  // le dossier à gauche, le contact à droite : chacun imprime son ruban
+  korry(wings[-1], "dossier", -0.2, -0.135, ["DOSSIER"], { w: 0.09, h: 0.062 });
+  korry(wings[1], "contact", 0.105, -0.135, ["CONTACT"], { w: 0.09, h: 0.062 });
 
-  // aile gauche : les compétences, une touche chacune
-  ([["claude", ["CLAUDE"]], ["python", ["PYTHON"]], ["sql", ["SQL"]], ["ml", ["MACHINE", "LEARNING"]]] as const)
-    .forEach(([k, legend], i) => korry(wings[-1], k, -(0.07 + i * 0.088), -0.135, [...legend], { w: 0.074, h: 0.052 }));
-  const skillTag = tex.placard("COMPÉTENCES", 0.12, 0.016, { color: "#d8ad18" });
-  skillTag.position.set(-0.2, -0.185, 0.031);
-  wings[-1].add(skillTag);
-
-  // aile droite : deux compétences, puis l'éclairage de cabine et l'éjection
-  korry(wings[1], "web", 0.07, -0.135, ["TS", "REACT"], { w: 0.074, h: 0.052 });
-  korry(wings[1], "java", 0.158, -0.135, ["JAVA"], { w: 0.074, h: 0.052 });
+  /** la plaque gravée s'éclaire d'elle-même quand la cabine est dans le noir (voir updatePanel) */
+  function glowLabel(pl: THREE.Mesh) {
+    const m = pl.material as THREE.MeshStandardMaterial;
+    m.emissive = new THREE.Color(0xffe2b0); m.emissiveMap = m.map; m.emissiveIntensity = 0;
+    ctx.switchGlow.labels.push(m);
+  }
 
   // zone de clic invisible, plus large que la commande, pour les petites pièces
   function hitbox(parent: THREE.Object3D, key: string, w: number, h: number, d: number,
@@ -180,6 +174,16 @@ export function buildPanel(ctx: Ctx) {
     const pl = tex.placard("FEUX CABINE", 0.08, 0.017);
     pl.position.set(0, -0.036, 0.001);
     g.add(pl);
+    glowLabel(pl);
+    // une petite lampe ambre et une bague, allumées en permanence : l'interrupteur se trouve dans le noir
+    const led = new THREE.Mesh(new THREE.CircleGeometry(0.0036, 20), mat(0x2a1500, 0.4, 0, { emissive: 0xffa53a, emissiveIntensity: 0.5 }));
+    led.position.set(-0.026, 0.002, 0.0012);
+    g.add(led);
+    ctx.switchGlow.leds.push(led.material as THREE.MeshStandardMaterial);
+    const bague = new THREE.Mesh(new THREE.TorusGeometry(0.0172, 0.0012, 8, 40), mat(0x2a1500, 0.4, 0, { emissive: 0xffa53a, emissiveIntensity: 0.5 }));
+    bague.position.z = 0.0008;
+    g.add(bague);
+    ctx.switchGlow.leds.push(bague.material as THREE.MeshStandardMaterial);
     hitbox(g, "lights", 0.05, 0.06, 0.05, "toggle", lever).cap.position.set(0, 0.006, 0.02);
   }
   {
@@ -203,31 +207,8 @@ export function buildPanel(ctx: Ctx) {
     const pl = tex.placard("ÉJECTION", 0.07, 0.017, { color: "#ff8a7a" });
     pl.position.set(0, -0.04, 0.001);
     g.add(pl);
+    glowLabel(pl);
     hitbox(g, "eject", 0.05, 0.065, 0.05, "guard", lever, hinge).cap.position.set(0, 0.004, 0.02);
-  }
-
-  /* écran de navigation, à la place du globe : la liste des projets, dessinée dans un
-     canevas par actions/nav.ts. Un afficheur à plat, sous une vitre */
-  {
-    const SW = 0.44, SH = 0.19;
-    const g = new THREE.Group();
-    g.position.set(0, 0.045, 0.03);
-    panel.add(g);
-    const frame = shadowy(new THREE.Mesh(new RoundedBoxGeometry(SW + 0.03, SH + 0.03, 0.02, 3, 0.008), M.bezel));
-    frame.position.z = 0.006;
-    g.add(frame);
-    const map = tex.canvas(NAV.w, NAV.h, (c, W, H) => { c.fillStyle = "#0b0d0c"; c.fillRect(0, 0, W, H); });
-    const screenMat = new THREE.MeshBasicMaterial({ map, toneMapped: false, color: 0x0b0b0b });
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(SW, SH), screenMat);
-    mesh.position.z = 0.0165;
-    mesh.userData.skip = true;
-    g.add(mesh);
-    const glass = new THREE.Mesh(new THREE.PlaneGeometry(SW, SH),
-      new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.04, transparent: true, opacity: 0.07, depthWrite: false }));
-    glass.position.z = 0.018;
-    glass.userData.skip = true;
-    g.add(glass);
-    ctx.navScreen = { mesh, canvas: map.image as HTMLCanvasElement, tex: map, mat: screenMat };
   }
 }
 
@@ -245,6 +226,9 @@ export function updatePanel(ctx: Ctx, t: number, dt: number) {
     const glow = b.on || power.lamp === b.key ? 2.4 : night.k * 0.32 * power.k;
     b.capMat.emissiveIntensity += (glow - b.capMat.emissiveIntensity) * Math.min(1, dt * 8);
   }
-  // l'écran de navigation s'allume avec le reste du poste
-  ctx.navScreen.mat.color.setScalar(0.04 + 0.96 * power.k);
+  // dans le noir (cabine éteinte au démarrage, ou vol de nuit), l'interrupteur des feux et la
+  // plaque de l'éjection s'éclairent ; cabine allumée, ils ne gardent qu'une veilleuse
+  const noir = 1 - power.dome * (1 - night.k);
+  for (const m of ctx.switchGlow.labels) m.emissiveIntensity = 0.1 + 0.9 * noir;
+  for (const m of ctx.switchGlow.leds) m.emissiveIntensity = 0.5 + 2.2 * noir;
 }

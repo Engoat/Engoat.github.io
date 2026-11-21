@@ -16,7 +16,7 @@ import { buildDetails } from "./world/details";
 import { createSlip } from "./actions/slip";
 import { createTravel } from "./actions/travel";
 import { createCommands } from "./actions/commands";
-import { createNav } from "./actions/nav";
+import { createOrrery } from "./actions/orrery";
 import { createDirector } from "./demo/director";
 import { createHead } from "./camera";
 
@@ -51,6 +51,7 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.shadowMap.enabled = true;
+  renderer.localClippingEnabled = true;     // la maquette est coupée au niveau de la planche
   renderer.shadowMap.type = THREE.PCFShadowMap;
 
   const scene = new THREE.Scene();
@@ -92,8 +93,8 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
   buildPanel(ctx);
   buildConsoles(ctx);
   buildDetails(ctx);
-  await step(0.5, "Peinture de la planète");
-  const nav = createNav(ctx);
+  await step(0.5, "Maquette des planètes");
+  const orrery = createOrrery(ctx);
   await step(0.55, "Gants et combinaison");
   const [gR, gL] = await handsP;
   buildHands(ctx, gR, gL);
@@ -110,8 +111,7 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
     arrived: (t) => { void director.start(t); },
     leaving: () => director.stop(),
   });
-  commands = createCommands(ctx, slip, travel, nav);
-  nav.setAuRepos(() => travel.state.state === "home");
+  commands = createCommands(ctx, slip, travel, orrery);
   const head = createHead(ctx);
 
   /* --- clics : commandes du cockpit, ruban, ou planète vue par le hublot --- */
@@ -133,18 +133,11 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
     const hit = ray.intersectObjects(caps, false).find((h) => h.object.visible);
     return hit ? hit.object.userData.button.key : null;
   }
-  // la planète choisie n'est cliquable qu'au repos, et si rien du cockpit ne la cache
-  function pickPlanet(): ProjectKey | null {
-    if (travel.state.state !== "home" || nav.state.busy) return null;
-    const hit = ray.intersectObject(ctx.planet(nav.selected()).mesh, false)[0];
-    if (!hit) return null;
-    const wall = ray.intersectObjects(blockers, false)[0];
-    return wall && wall.distance < hit.distance ? null : nav.selected();
-  }
-  // une ligne de l'écran de navigation
-  function pickRow(): number | null {
-    const hit = ray.intersectObject(ctx.navScreen.mesh, false)[0];
-    return hit?.uv ? nav.ligneAt(hit.uv) : null;
+  // une miniature de la maquette (elles ne se touchent que maquette sortie, au repos)
+  function pickMini(): ProjectKey | null {
+    if (travel.state.state !== "home" || !orrery.state.open) return null;
+    const hit = ray.intersectObjects(orrery.hits, false).find((h) => h.object.visible);
+    return hit ? (hit.object.userData.button.key.slice(5) as ProjectKey) : null;
   }
   // « Suivant », dessiné sur la vitre sous le texte de la tour de contrôle
   function pickNext() {
@@ -152,40 +145,29 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
     const hit = ray.intersectObject(director.hud.mesh, false)[0];
     return !!hit?.uv && director.hud.hitsNext(hit.uv);
   }
-  const onMove = (e: PointerEvent) => { aim(e); canvas.classList.toggle("hot", pickNext() || !!pickButton() || !!pickPlanet() || pickRow() !== null); };
+  const onMove = (e: PointerEvent) => {
+    aim(e);
+    const mini = pickMini();
+    orrery.hover(mini);
+    canvas.classList.toggle("hot", pickNext() || !!pickButton() || mini !== null);
+  };
   const onClick = (e: MouseEvent) => {
     aim(e);
     if (pickNext()) { director.next(); return; }
-    const row = pickRow();
-    if (row !== null) { void nav.goTo(row); return; }
     const key = pickButton();
-    if (key) { commands.act(key); return; }
-    if (pickPlanet()) commands.act("engage");
+    if (key && !key.startsWith("mini_")) { commands.act(key); return; }
+    const mini = pickMini();
+    if (mini) commands.act("engage_" + mini);
   };
-  // la molette sur l'écran de navigation fait défiler les projets
-  const onWheel = (e: WheelEvent) => {
-    aim(e);
-    if (pickRow() === null && !ray.intersectObject(ctx.navScreen.mesh, false)[0]) return;
-    e.preventDefault();
-    void nav.step(e.deltaY > 0 ? 1 : -1);
-  };
-  canvas.addEventListener("wheel", onWheel, { passive: false });
   canvas.addEventListener("pointermove", onMove);
   canvas.addEventListener("click", onClick);
-  /* au clavier (sauf si un bouton de la page a le focus) : pendant une visite, → ou Entrée
-     font avancer la visite ; au repos, ← et → changent de projet et Entrée l'engage */
+  // au clavier : → ou Entrée font avancer la visite (sauf si un bouton de la page a le focus)
   const onKey = (e: KeyboardEvent) => {
+    if (!director.state.active || (e.key !== "ArrowRight" && e.key !== "Enter")) return;
     const el = document.activeElement;
     if (el && el !== document.body && el !== canvas) return;
-    if (director.state.active) {
-      if (e.key !== "ArrowRight" && e.key !== "Enter") return;
-      e.preventDefault();
-      director.next();
-      return;
-    }
-    if (e.key === "ArrowRight") { e.preventDefault(); commands.act("nav_next"); }
-    else if (e.key === "ArrowLeft") { e.preventDefault(); commands.act("nav_prev"); }
-    else if (e.key === "Enter") { e.preventDefault(); commands.act("engage"); }
+    e.preventDefault();
+    director.next();
   };
   addEventListener("keydown", onKey);
   const act = (key: string) => (key === "next" ? director.next() : commands.act(key));
@@ -204,6 +186,7 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
   function update(t: number, dt: number) {
     ctx.anim.step(dt);
     updatePanel(ctx, t, dt);
+    orrery.update(dt);
     travel.update(dt);
     head.update(t, dt, travel.state.thrust);
     updateLights(ctx, dt);
@@ -239,7 +222,7 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
   ui.progress(1, "Prêt");
   raf = requestAnimationFrame(frame);
   window.__ready = true;
-  window.__dbg = { ctx, act, travel, director, nav, boot: () => boot() };
+  window.__dbg = { ctx, act, travel, director, orrery, boot: () => boot() };
   /* l'allumage part quand l'écran de chargement s'est ouvert sur le cockpit (l'interface
      appelle boot) ; s'il ne l'a pas fait au bout de 6 s, il part de lui-même */
   let booted = false;
@@ -258,7 +241,6 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
       clearTimeout(bootTimer);
       canvas.removeEventListener("pointermove", onMove);
       canvas.removeEventListener("click", onClick);
-      canvas.removeEventListener("wheel", onWheel);
       removeEventListener("keydown", onKey);
       removeEventListener("resize", onResize);
       renderer.dispose();

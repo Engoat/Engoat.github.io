@@ -2,7 +2,7 @@ import type { Ctx } from "../types";
 import type { ProjectKey } from "../../content/profile";
 import type { Slip } from "./slip";
 import type { Travel } from "./travel";
-import type { Nav } from "./nav";
+import type { OrreryControl } from "./orrery";
 import { pressButton } from "./press";
 import { ease } from "../util/tween";
 import { PLATE_GLOW } from "../world/cabin";
@@ -10,7 +10,7 @@ import { PLATE_GLOW } from "../world/cabin";
 /* Un clic pendant une animation n'est pas perdu : il attend son tour. Un second clic
    sur la commande déjà en cours (double-clic) est ignoré, sinon il déferait aussitôt
    ce qu'on vient de demander. */
-export function createCommands(ctx: Ctx, slip: Slip, travel: Travel, nav: Nav) {
+export function createCommands(ctx: Ctx, slip: Slip, travel: Travel, orrery: OrreryControl) {
   let busy = false, current: string | null = null, queued: string | null = null;
 
   function act(key: string) {
@@ -34,27 +34,48 @@ export function createCommands(ctx: Ctx, slip: Slip, travel: Travel, nav: Nav) {
     await slip.tear();
   };
 
+  /** le gros bouton : sorti ou rentré, la maquette ; en visite, le retour au cockpit */
+  async function planetes() {
+    await pressButton(ctx, "planetes");
+    const b = ctx.buttons["planetes"];
+    if (travel.state.state !== "home") {
+      await tearOpenSlip();
+      await travel.engage(travel.state.target);
+      return;
+    }
+    await tearOpenSlip();
+    await orrery.toggle();
+    if (!b.kind) b.on = orrery.state.open;
+  }
+
+  /** aller vers un projet : on touche sa miniature sur la maquette (ou, sans maquette sortie, on y va directement) */
+  async function engage(target: ProjectKey) {
+    await tearOpenSlip();
+    if (travel.state.state === "home") {
+      if (orrery.state.open) await pressButton(ctx, "mini_" + target);
+      const b = ctx.buttons["planetes"];
+      if (!b.kind) b.on = false;
+      void orrery.close();
+      await travel.engage(target);
+    } else if (travel.state.state === "there") {
+      await pressButton(ctx, "planetes");
+      await travel.engage(travel.state.target);
+    }
+  }
+
   function run(key: string) {
     return exclusive(key, async () => {
       if (key === "tear") { await tearOpenSlip(); return; }
-      // le projet à engager : le projet choisi sur l'écran (« engage »), ou un projet nommé
-      // (« engage_nexus », depuis le clavier ou le retour de la visite)
-      const cible: ProjectKey | null = key === "engage" ? nav.selected() : key.startsWith("engage_") ? (key.slice(7) as ProjectKey) : null;
-      const auRepos = travel.state.state === "home";
-      if ((key === "nav_prev" || key === "nav_next") && !auRepos) return;
-      if (cible && auRepos) await nav.goTo(cible);
-      await nav.idle();
-      await pressButton(ctx, cible ? "engage" : key);
+      if (key === "planetes") { await planetes(); return; }
+      // « engage_nexus » : depuis le clavier, depuis le clic sur une miniature, ou au retour de la visite
+      if (key.startsWith("engage_")) { await engage(key.slice(7) as ProjectKey); return; }
+      if (key.startsWith("mini_")) { await engage(key.slice(5) as ProjectKey); return; }
+      await pressButton(ctx, key);
       if (key === "lights") {
         ctx.night.on = !ctx.night.on;
       } else if (key === "eject") {
         await tearOpenSlip();
         ctx.ui.openSite();
-      } else if (key === "nav_prev" || key === "nav_next") {
-        await nav.step(key === "nav_next" ? 1 : -1);
-      } else if (cible) {
-        await tearOpenSlip();
-        await travel.engage(auRepos ? cible : travel.state.target);
       } else if (slip.state.open === key) {
         await tearOpenSlip();
       } else {
@@ -70,7 +91,7 @@ export function createCommands(ctx: Ctx, slip: Slip, travel: Travel, nav: Nav) {
      La main droite bascule FEUX CABINE ; le plafonnier hésite puis tient ; les voyants
      s'allument un par un (test des lampes) ; les aiguilles montent en bout d'échelle et
      reviennent ; la plaque du pilote s'éclaire. */
-  const LAMP_TEST = ["ml", "sql", "python", "claude", "dossier", "nav_prev", "engage", "nav_next", "contact", "web", "java"];
+  const LAMP_TEST = ["dossier", "planetes", "contact"];
   function boot() {
     const { power, anim } = ctx;
     return exclusive("boot", async () => {
@@ -81,7 +102,7 @@ export function createCommands(ctx: Ctx, slip: Slip, travel: Travel, nav: Nav) {
       for (const [d, v] of [[0.05, 0.7], [0.07, 0], [0.05, 0.9], [0.12, 0.15], [0.06, 1], [0.05, 0.4], [0.35, 1]]) {
         power.dome = v; await anim.wait(d);
       }
-      for (const k of LAMP_TEST) { power.lamp = k; await anim.wait(0.07); }
+      for (const k of LAMP_TEST) { power.lamp = k; await anim.wait(0.09); }
       power.lamp = null;
       await anim.tween(1.2, (k) => { power.test = Math.sin(Math.PI * ease(k)); });
       power.test = 0;
@@ -93,7 +114,7 @@ export function createCommands(ctx: Ctx, slip: Slip, travel: Travel, nav: Nav) {
   /** retour du portfolio classique : le capot de l'éjection se referme */
   function siteClosed() {
     const b = ctx.buttons.eject;
-    if (!b.kind || !b.hinge) return;
+    if (b.kind !== "guard" || !b.hinge) return;
     b.lever.rotation.x = 0.5;
     const hinge = b.hinge, h0 = hinge.rotation.x;
     void ctx.anim.tween(0.3, (k) => { hinge.rotation.x = h0 * (1 - ease(k)); });

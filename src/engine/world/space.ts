@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import type { Ctx, Planet } from "../types";
 import type { ProjectKey } from "../../content/profile";
+import { PROJECTS } from "../../content/profile";
 import { paintCrible, paintNexus } from "./painters";
 import { GLSL_NOISE } from "./noise.glsl";
 
@@ -116,9 +117,10 @@ const atmosphereMaterial = (look: Look) => new THREE.ShaderMaterial({
     }`,
 });
 
-/* Les planètes se fabriquent à la demande : une carte de 4096 × 2048 pèse 32 Mo, et le
-   portfolio peut compter beaucoup de projets. La planète choisie est seule dans le hublot ;
-   celles qui s'en éloignent sont libérées (voir actions/nav.ts). */
+/* Les planètes tournent autour du vaisseau, hors du hublot : on n'en voit aucune au repos.
+   Quand on en choisit une sur la maquette, le vaisseau vire vers elle et elle entre dans le
+   hublot par le côté. Une carte de 4096 × 2048 pèse 32 Mo : une planète se fabrique à la
+   demande, et seules les trois dernières utilisées sont gardées. */
 interface PlanetSpec { name: string; paint: (g: CanvasRenderingContext2D, W: number, H: number) => void; look: Look; radius: number; tilt: [number, number, number] }
 
 // atmosphère de Nexus : violet de l'arbre (#6B2BD9) éclairci par la diffusion ; Crible : une poussière
@@ -129,15 +131,26 @@ const SPECS: Record<ProjectKey, PlanetSpec> = {
   crible: { name: "CRIBLE", paint: paintCrible, look: { atmo: 0xe9a07e, lights: 0xffa35a, seed: 7.3 }, radius: 19, tilt: [0.2, 0.7, -0.1] },
 };
 
-/** là où se pose la planète choisie : à droite du centre du hublot */
-const STAGE_DIR = new THREE.Vector3(0.22, 0.19, -1), STAGE_DIST = 150;
+export const planetRadius = (key: ProjectKey) => SPECS[key].radius;
+export const planetName = (key: ProjectKey) => SPECS[key].name;
+
+/** où est une planète autour du vaisseau, en degrés : à droite, puis à gauche, puis de plus en
+    plus vers l'arrière. Le hublot ne couvre que ±40° devant : aucune n'y est au repos. La
+    maquette place ses miniatures aux mêmes angles. */
+export function homeAngles(key: ProjectKey) {
+  const i = Math.max(0, PROJECTS.findIndex((p) => p.key === key));
+  const side = i % 2 === 0 ? 1 : -1;
+  return { az: side * (62 + Math.floor(i / 2) * 36), el: 8 + (i % 3) * 5 };
+}
+const HOME_DIST = 150;
 
 function makePlanet(space: THREE.Group, key: ProjectKey, spec: PlanetSpec, map: THREE.CanvasTexture): Planet {
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 160, 120), surfaceMaterial(map, spec.look));
   const shell = new THREE.Mesh(new THREE.SphereGeometry(1.035, 96, 64), atmosphereMaterial(spec.look));
   shell.raycast = () => {};       // la couronne ne bloque pas les clics sur la planète
   mesh.add(shell);
-  const home = STAGE_DIR.clone().normalize().multiplyScalar(STAGE_DIST);
+  const { az, el } = homeAngles(key), A = THREE.MathUtils.degToRad(az), E = THREE.MathUtils.degToRad(el);
+  const home = new THREE.Vector3(Math.sin(A) * Math.cos(E), Math.sin(E), -Math.cos(A) * Math.cos(E)).multiplyScalar(HOME_DIST);
   mesh.position.copy(home);
   mesh.scale.setScalar(spec.radius);
   mesh.rotation.set(...spec.tilt);
@@ -148,7 +161,13 @@ function makePlanet(space: THREE.Group, key: ProjectKey, spec: PlanetSpec, map: 
   const approach = new THREE.Vector3(0.04, 0.12, -1).normalize().multiplyScalar(52 * spec.radius / 21);
   const qAlign = new THREE.Quaternion().setFromUnitVectors(home.clone().normalize(), approach.clone().normalize());
   const approachLocal = approach.clone().applyQuaternion(qAlign.clone().invert());
-  return { key, name: spec.name, mesh, shell, map, offset: new THREE.Vector3(), home, approach, qAlign, approachLocal, radius: spec.radius };
+  return { key, name: spec.name, mesh, shell, map, home, approach, qAlign, approachLocal, radius: spec.radius };
+}
+
+/** la surface de la planète en miniature (512 × 256), pour la maquette : le même peintre, à l'échelle */
+export function miniMap(ctx: Ctx, key: ProjectKey) {
+  const spec = SPECS[key];
+  return ctx.tex.canvas(512, 256, (g) => { g.scale(512 / 4096, 256 / 2048); spec.paint(g, 4096, 2048); });
 }
 
 export function buildSpace(ctx: Ctx) {
@@ -157,13 +176,17 @@ export function buildSpace(ctx: Ctx) {
   space.add(buildStars());
   ctx.space = space;
   ctx.planets = {};
+  const recents: ProjectKey[] = [];
   ctx.planet = (key) => {
     const known = ctx.planets[key];
-    if (known) return known;
+    if (known) { recents.splice(recents.indexOf(key), 1); recents.push(key); return known; }
     const spec = SPECS[key];
     const map = ctx.tex.canvas(4096, 2048, spec.paint);
     ctx.renderer.initTexture(map);          // l'envoi à la carte graphique se fait ici, pas à l'affichage
-    return (ctx.planets[key] = makePlanet(space, key, spec, map));
+    const p = (ctx.planets[key] = makePlanet(space, key, spec, map));
+    recents.push(key);
+    while (recents.length > 3) ctx.releasePlanet(recents[0]);
+    return p;
   };
   ctx.releasePlanet = (key) => {
     const p = ctx.planets[key];
@@ -172,5 +195,7 @@ export function buildSpace(ctx: Ctx) {
     for (const m of [p.mesh, p.shell]) { m.geometry.dispose(); m.material.dispose(); }
     p.map.dispose();
     delete ctx.planets[key];
+    const i = recents.indexOf(key);
+    if (i >= 0) recents.splice(i, 1);
   };
 }

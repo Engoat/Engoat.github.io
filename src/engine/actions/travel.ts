@@ -35,8 +35,11 @@ export function createTravel(ctx: Ctx, hooks: TravelHooks) {
     if (state.state === "home") {
       state.target = target;
       state.state = "going";
-      setButton(true);
-      ctx.ui.setCaption([{ kind: "text", text: `Cap sur ${ctx.planet(target).name}.` }]);
+      // la planète est autour du vaisseau, hors du hublot : on la fabrique et elle apparaît
+      // quand le vaisseau vire vers elle
+      const planet = ctx.planet(target);
+      planet.mesh.visible = true;
+      ctx.ui.setCaption([{ kind: "text", text: `Cap sur ${planet.name}.` }]);
       await ctx.anim.tween(GO, (k) => { state.k = k; });
       state.state = "there";
       hooks.arrived(target);
@@ -46,12 +49,9 @@ export function createTravel(ctx: Ctx, hooks: TravelHooks) {
       hooks.leaving();
       await ctx.anim.tween(BACK, (k) => { state.k = 1 - k; });
       state.state = "home";
-      setButton(false);
+      // de retour, les planètes ne sont plus dans le hublot
+      for (const p of Object.values(ctx.planets)) p.mesh.visible = false;
     }
-  }
-  function setButton(on: boolean) {
-    const b = ctx.buttons["engage"];
-    if (!b.kind) b.on = on;
   }
 
   /** à chaque image : l'extérieur pivote (le soleil avec), puis la planète approche */
@@ -60,7 +60,7 @@ export function createTravel(ctx: Ctx, hooks: TravelHooks) {
     ctx.space.quaternion.slerpQuaternions(Q_ID, tp.qAlign, ph.turn);
     for (const p of Object.values(ctx.planets)) {
       if (p.key === state.target && state.k > 0) p.mesh.position.lerpVectors(p.home, p.approachLocal, ph.move);
-      else p.mesh.position.copy(p.home).add(p.offset);
+      else p.mesh.position.copy(p.home);
       const sun = p.mesh.material.uniforms.sunDir.value as THREE.Vector3;
       sun.copy(SUN_DIR).applyQuaternion(ctx.space.quaternion);
       (p.shell.material.uniforms.sunDir.value as THREE.Vector3).copy(sun);

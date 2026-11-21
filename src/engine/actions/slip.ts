@@ -2,7 +2,7 @@ import * as THREE from "three";
 import type { CaptionItem, Ctx } from "../types";
 import { mat } from "../util/textures";
 import { SLOT } from "../world/console";
-import { EMAIL, GITHUB, PERSON, PROJECTS, SKILLS, SKILL_LINES, bare } from "../../content/profile";
+import { EMAIL, GITHUB, PERSON, PROJECTS, bare } from "../../content/profile";
 
 /* Le ruban de l'imprimante de bord. Conventions des lignes :
    "# " titre, "! " gras, "## " rubrique, "> " renvoi, "--" filet, "" blanc. */
@@ -12,18 +12,14 @@ const SLIPS: Record<string, string[]> = {
     "! " + PERSON.name.toUpperCase(),
     PERSON.lead, PERSON.place + ".", "",
     "## PROFIL", PERSON.profile, "",
-    "## COMPÉTENCES", ...SKILL_LINES, "",
     "## PROJETS",
     ...PROJECTS.flatMap((p) => ["! " + p.name.toUpperCase(), p.slip, `> code : ${bare(p.repo)}`, ""]),
-    "> Écran de navigation : PROJET",
-    "> PRÉC. / SUIV., puis ENGAGER.",
+    "> Bouton PLANÈTES : la maquette",
+    "> des projets.",
     "--",
     `> GitHub : ${bare(GITHUB)}`,
     "> Contact : bouton CONTACT",
   ],
-  ...Object.fromEntries(SKILLS.map((s) => [s.key, [
-    "## COMPÉTENCE", "# " + s.title.toUpperCase(), "--", s.text, "--", `> ${PERSON.name.toUpperCase()} · dossier pilote`,
-  ]])),
   contact: [
     "# CONTACT", "--",
     "! " + PERSON.name.toUpperCase(),
