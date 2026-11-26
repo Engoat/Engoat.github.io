@@ -26,6 +26,8 @@ export function buildPanel(ctx: Ctx) {
   ctx.needles = [];
   ctx.gaugeFaces = [];
   ctx.switchGlow = { labels: [], leds: [] };
+  ctx.attract = false;
+  ctx.attractLeds = [];
 
   panel.add(shadowy(new THREE.Mesh(new RoundedBoxGeometry(0.9, 0.46, 0.06, 4, 0.014), M.paint)));
   const wings: Record<-1 | 1, THREE.Group> = { [-1]: new THREE.Group(), 1: new THREE.Group() };
@@ -108,14 +110,32 @@ export function buildPanel(ctx: Ctx) {
   /* boutons-poussoirs lumineux à la manière des Korry d'aviation : légende gravée,
      éteinte au repos, allumée quand la fonction est active */
   function korry(parent: THREE.Object3D, key: string, x: number, y: number, lines: string[],
-    { w = 0.09, h = 0.062, lit = "#ffb143", striped = false } = {}): PushButton {
+    { w = 0.09, h = 0.062, lit = "#ffb143", striped = false, attract = false } = {}): PushButton {
     const g = new THREE.Group();
     g.position.set(x, y, 0.03);
     parent.add(g);
     if (striped) {
-      const s = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.034, h + 0.034), mat(0xffffff, 0.6, 0, { map: tex.canvas(256, 256, stripes) }));
+      // le bouton qui doit attirer l'œil a un cadre rayé plus large
+      const ex = attract ? 0.062 : 0.034;
+      const s = new THREE.Mesh(new THREE.PlaneGeometry(w + ex, h + ex * 0.85), mat(0xffffff, 0.6, 0, { map: tex.canvas(256, 256, stripes) }));
       s.position.z = 0.0008;
       g.add(s);
+    }
+    if (attract) {
+      // des lampes ambre tout autour, qui courent l'une après l'autre quand il faut attirer l'œil
+      const hw = (w + 0.062) / 2 + 0.002, hh = (h + 0.053) / 2 + 0.002, n = 18, per = 2 * (2 * hw + 2 * hh);
+      for (let i = 0; i < n; i++) {
+        let d = (i / n) * per, x = 0, y = 0;
+        if (d < 2 * hw) { x = -hw + d; y = hh; }
+        else if ((d -= 2 * hw) < 2 * hh) { x = hw; y = hh - d; }
+        else if ((d -= 2 * hh) < 2 * hw) { x = hw - d; y = -hh; }
+        else { d -= 2 * hw; x = -hw; y = -hh + d; }
+        const m = mat(0x2a1500, 0.4, 0, { emissive: 0xffa53a, emissiveIntensity: 0 });
+        const led = new THREE.Mesh(new THREE.CircleGeometry(0.0032, 14), m);
+        led.position.set(x, y, 0.0014);
+        g.add(led);
+        ctx.attractLeds.push(m);
+      }
     }
     const housing = shadowy(new THREE.Mesh(new RoundedBoxGeometry(w + 0.012, h + 0.012, 0.018, 3, 0.004), M.bezel));
     housing.position.z = 0.009;
@@ -136,7 +156,7 @@ export function buildPanel(ctx: Ctx) {
     return b;
   }
   /* le gros bouton, au centre : il fait sortir la maquette des planètes (voir world/orrery.ts) */
-  korry(panel, "planetes", 0, -0.15, ["PLANÈTES"], { w: 0.15, h: 0.094, striped: true });
+  korry(panel, "planetes", 0, -0.15, ["PLANÈTES"], { w: 0.15, h: 0.094, striped: true, attract: true });
   // le dossier à gauche, le contact à droite : chacun imprime son ruban
   korry(wings[-1], "dossier", -0.2, -0.135, ["DOSSIER"], { w: 0.09, h: 0.062 });
   korry(wings[1], "contact", 0.105, -0.135, ["CONTACT"], { w: 0.09, h: 0.062 });
@@ -223,9 +243,14 @@ export function updatePanel(ctx: Ctx, t: number, dt: number) {
   for (const b of Object.values(ctx.buttons)) {
     if (b.kind) continue;
     b.cap.position.z += ((b.depth ? 0.016 : 0.024) - b.cap.position.z) * Math.min(1, dt * 30);
-    const glow = b.on || power.lamp === b.key ? 2.4 : night.k * 0.32 * power.k;
+    let glow = b.on || power.lamp === b.key ? 2.4 : night.k * 0.32 * power.k;
+    // le gros bouton PLANÈTES respire en ambre tant qu'on ne l'a pas touché : impossible à rater
+    if (b.key === "planetes" && ctx.attract && !b.on) glow = power.k * (ctx.reduced ? 1.6 : 0.7 + 1.9 * (0.5 + 0.5 * Math.sin(t * 3.4)));
     b.capMat.emissiveIntensity += (glow - b.capMat.emissiveIntensity) * Math.min(1, dt * 8);
   }
+  ctx.attractLeds.forEach((m, i) => {
+    m.emissiveIntensity = power.k * (ctx.attract ? (ctx.reduced ? 1.6 : 0.2 + 3.2 * Math.max(0, Math.sin(t * 5 - i * 0.55)) ** 3) : 0.12);
+  });
   // dans le noir (cabine éteinte au démarrage, ou vol de nuit), l'interrupteur des feux et la
   // plaque de l'éjection s'éclairent ; cabine allumée, ils ne gardent qu'une veilleuse
   const noir = 1 - power.dome * (1 - night.k);

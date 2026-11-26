@@ -5,7 +5,7 @@ import { PROJECTS } from "../../content/profile";
 import { paintCrible, paintNexus } from "./painters";
 import { GLSL_NOISE } from "./noise.glsl";
 
-/** soleil des planètes, venu de la gauche : on les voit à moitié éclairées (premier quartier) */
+/** direction initiale du soleil dans les shaders (recalculée à chaque image pour chaque planète) */
 export const SUN_DIR = new THREE.Vector3(-0.95, 0.35, 0.12).normalize();
 
 export function buildStars() {
@@ -117,85 +117,134 @@ const atmosphereMaterial = (look: Look) => new THREE.ShaderMaterial({
     }`,
 });
 
-/* Les planètes tournent autour du vaisseau, hors du hublot : on n'en voit aucune au repos.
-   Quand on en choisit une sur la maquette, le vaisseau vire vers elle et elle entre dans le
-   hublot par le côté. Une carte de 4096 × 2048 pèse 32 Mo : une planète se fabrique à la
-   demande, et seules les trois dernières utilisées sont gardées. */
+/* Le système : un soleil devant le vaisseau, légèrement à gauche, et les planètes qui tournent
+   autour de lui sur des orbites inclinées, en tournant aussi sur elles-mêmes. La maquette de la
+   planche reprend les mêmes orbites, à la même phase : c'est le même ciel vu de dessus.
+   Chaque planète est éclairée par le soleil : de face quand elle est derrière lui, en croissant ou
+   en ombre quand elle passe devant.
+   Au repos, chaque planète porte une carte légère (1024 × 512). La carte détaillée
+   (4096 × 2048, 32 Mo) n'est fabriquée qu'au moment de partir, et libérée au retour. */
 interface PlanetSpec { name: string; paint: (g: CanvasRenderingContext2D, W: number, H: number) => void; look: Look; radius: number; tilt: [number, number, number] }
 
 // atmosphère de Nexus : violet de l'arbre (#6B2BD9) éclairci par la diffusion ; Crible : une poussière
 // chaude tirée de son vermillon (#E8432A), comme le ciel de Mars.
 // Lumières de nuit : sodium (l'encre colorée de Nexus et de Crible).
 const SPECS: Record<ProjectKey, PlanetSpec> = {
-  nexus: { name: "NEXUS", paint: paintNexus, look: { atmo: 0x9a86e8, lights: 0xffb35c, seed: 1.7 }, radius: 24, tilt: [0.32, 2.2, 0.18] },
-  crible: { name: "CRIBLE", paint: paintCrible, look: { atmo: 0xe9a07e, lights: 0xffa35a, seed: 7.3 }, radius: 19, tilt: [0.2, 0.7, -0.1] },
+  nexus: { name: "NEXUS", paint: paintNexus, look: { atmo: 0x9a86e8, lights: 0xffb35c, seed: 1.7 }, radius: 62, tilt: [0.32, 2.2, 0.18] },
+  crible: { name: "CRIBLE", paint: paintCrible, look: { atmo: 0xe9a07e, lights: 0xffa35a, seed: 7.3 }, radius: 50, tilt: [0.2, 0.7, -0.1] },
 };
 
 export const planetRadius = (key: ProjectKey) => SPECS[key].radius;
 export const planetName = (key: ProjectKey) => SPECS[key].name;
 
-/** où est une planète autour du vaisseau, en degrés : à droite, puis à gauche, puis de plus en
-    plus vers l'arrière. Le hublot ne couvre que ±40° devant : aucune n'y est au repos. La
-    maquette place ses miniatures aux mêmes angles. */
-export function homeAngles(key: ProjectKey) {
-  const i = Math.max(0, PROJECTS.findIndex((p) => p.key === key));
-  const side = i % 2 === 0 ? 1 : -1;
-  return { az: side * (62 + Math.floor(i / 2) * 36), el: 8 + (i % 3) * 5 };
-}
-const HOME_DIST = 150;
+/** le soleil : devant le vaisseau, un peu à gauche et au-dessus de l'horizon (dans le hublot) */
+const SUN_AZ = THREE.MathUtils.degToRad(-10), SUN_EL = THREE.MathUtils.degToRad(9), SUN_DIST = 520, SUN_RADIUS = 36;
+export const SUN_POS = new THREE.Vector3(Math.sin(SUN_AZ) * Math.cos(SUN_EL), Math.sin(SUN_EL), -Math.cos(SUN_AZ) * Math.cos(SUN_EL)).multiplyScalar(SUN_DIST);
+/** le plan de chaque orbite : un axe horizontal, un autre incliné (peu de hauteur, beaucoup de profondeur) */
+const ORBIT_U = new THREE.Vector3(1, 0, 0), ORBIT_W = new THREE.Vector3(0, 0.22, -0.975).normalize();
+export const ORBIT_TILT = Math.atan2(0.22, 0.975);
 
-function makePlanet(space: THREE.Group, key: ProjectKey, spec: PlanetSpec, map: THREE.CanvasTexture): Planet {
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 160, 120), surfaceMaterial(map, spec.look));
+/** l'orbite d'un projet : de plus en plus large, de plus en plus lente, déphasée */
+export function orbitOf(key: ProjectKey) {
+  const i = Math.max(0, PROJECTS.findIndex((p) => p.key === key));
+  // phases de départ : de part et d'autre du soleil, côté éloigné (éclairées de face)
+  return { r: 105 + 60 * i, periode: 150 + 110 * i, phase: 2.55 - 2.1 * i };
+}
+const orbitPoint = (r: number, phase: number, out: THREE.Vector3) =>
+  out.copy(SUN_POS).addScaledVector(ORBIT_U, r * Math.cos(phase)).addScaledVector(ORBIT_W, r * Math.sin(phase));
+/** vitesse de rotation propre des planètes, la même dans le ciel et sur la maquette (rad/s) */
+export const SPIN = 0.14;
+
+/** la surface d'une planète à une taille donnée : le même peintre, à l'échelle */
+function paintedMap(ctx: Ctx, key: ProjectKey, w: number, h: number) {
+  const spec = SPECS[key];
+  return ctx.tex.canvas(w, h, (g) => { g.scale(w / 4096, h / 2048); spec.paint(g, 4096, 2048); });
+}
+const skyMaps = new Map<ProjectKey, THREE.CanvasTexture>();
+/** la carte légère d'une planète, partagée par le ciel et la miniature de la maquette */
+export function skyMap(ctx: Ctx, key: ProjectKey) {
+  let t = skyMaps.get(key);
+  if (!t) { t = paintedMap(ctx, key, 1024, 512); skyMaps.set(key, t); }
+  return t;
+}
+
+function makePlanet(space: THREE.Group, ctx: Ctx, key: ProjectKey): Planet {
+  const spec = SPECS[key], o = orbitOf(key), map = skyMap(ctx, key);
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 128, 96), surfaceMaterial(map, spec.look));
   const shell = new THREE.Mesh(new THREE.SphereGeometry(1.035, 96, 64), atmosphereMaterial(spec.look));
   shell.raycast = () => {};       // la couronne ne bloque pas les clics sur la planète
   mesh.add(shell);
-  const { az, el } = homeAngles(key), A = THREE.MathUtils.degToRad(az), E = THREE.MathUtils.degToRad(el);
-  const home = new THREE.Vector3(Math.sin(A) * Math.cos(E), Math.sin(E), -Math.cos(A) * Math.cos(E)).multiplyScalar(HOME_DIST);
+  const home = orbitPoint(o.r, o.phase, new THREE.Vector3());
   mesh.position.copy(home);
   mesh.scale.setScalar(spec.radius);
   mesh.rotation.set(...spec.tilt);
   mesh.userData.planet = key;
-  mesh.visible = false;
   space.add(mesh);
-  // à l'arrivée, la planète est au centre du hublot, à une distance qui lui donne la même taille apparente
-  const approach = new THREE.Vector3(0.04, 0.12, -1).normalize().multiplyScalar(52 * spec.radius / 21);
-  const qAlign = new THREE.Quaternion().setFromUnitVectors(home.clone().normalize(), approach.clone().normalize());
-  const approachLocal = approach.clone().applyQuaternion(qAlign.clone().invert());
-  return { key, name: spec.name, mesh, shell, map, home, approach, qAlign, approachLocal, radius: spec.radius };
+  return {
+    key, name: spec.name, mesh, shell, map, detail: null, home, frozen: false,
+    orbitR: o.r, phase: o.phase, omega: (Math.PI * 2) / o.periode,
+    approach: new THREE.Vector3(), qAlign: new THREE.Quaternion(), approachLocal: new THREE.Vector3(), radius: spec.radius,
+  };
 }
 
-/** la surface de la planète en miniature (512 × 256), pour la maquette : le même peintre, à l'échelle */
-export function miniMap(ctx: Ctx, key: ProjectKey) {
-  const spec = SPECS[key];
-  return ctx.tex.canvas(512, 256, (g) => { g.scale(512 / 4096, 256 / 2048); spec.paint(g, 4096, 2048); });
+/** le soleil : un disque blanc chaud et sa couronne */
+function makeSun() {
+  const g = new THREE.Group();
+  g.position.copy(SUN_POS);
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(SUN_RADIUS, 48, 32), new THREE.MeshBasicMaterial({ color: 0xfff0cf, toneMapped: false })));
+  const c = document.createElement("canvas"); c.width = c.height = 256;
+  const x = c.getContext("2d")!, grad = x.createRadialGradient(128, 128, 0, 128, 128, 128);
+  grad.addColorStop(0, "rgba(255,244,215,1)"); grad.addColorStop(0.14, "rgba(255,222,160,.9)");
+  grad.addColorStop(0.3, "rgba(255,185,105,.42)"); grad.addColorStop(0.6, "rgba(255,150,70,.12)"); grad.addColorStop(1, "rgba(255,140,60,0)");
+  x.fillStyle = grad; x.fillRect(0, 0, 256, 256);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, toneMapped: false }));
+  halo.scale.setScalar(SUN_RADIUS * 11);
+  g.add(halo);
+  return g;
 }
 
 export function buildSpace(ctx: Ctx) {
   const space = new THREE.Group();
   ctx.scene.add(space);
   space.add(buildStars());
+  space.add(makeSun());
   ctx.space = space;
   ctx.planets = {};
-  const recents: ProjectKey[] = [];
-  ctx.planet = (key) => {
-    const known = ctx.planets[key];
-    if (known) { recents.splice(recents.indexOf(key), 1); recents.push(key); return known; }
-    const spec = SPECS[key];
-    const map = ctx.tex.canvas(4096, 2048, spec.paint);
-    ctx.renderer.initTexture(map);          // l'envoi à la carte graphique se fait ici, pas à l'affichage
-    const p = (ctx.planets[key] = makePlanet(space, key, spec, map));
-    recents.push(key);
-    while (recents.length > 3) ctx.releasePlanet(recents[0]);
-    return p;
+  for (const p of PROJECTS) ctx.planets[p.key] = makePlanet(space, ctx, p.key);
+  ctx.planet = (key) => ctx.planets[key]!;
+
+  /** à chaque image : les planètes avancent sur leur orbite (sauf celle qu'on visite) */
+  ctx.systemUpdate = (dt) => {
+    for (const p of Object.values(ctx.planets)) {
+      if (p.frozen) continue;
+      p.phase += p.omega * dt;
+      orbitPoint(p.orbitR, p.phase, p.home);
+    }
   };
-  ctx.releasePlanet = (key) => {
-    const p = ctx.planets[key];
-    if (!p) return;
-    space.remove(p.mesh);
-    for (const m of [p.mesh, p.shell]) { m.geometry.dispose(); m.material.dispose(); }
-    p.map.dispose();
-    delete ctx.planets[key];
-    const i = recents.indexOf(key);
-    if (i >= 0) recents.splice(i, 1);
+  /** on part vers une planète : elle s'arrête, et on calcule le virage et l'approche depuis sa place */
+  ctx.freezePlanet = (key) => {
+    const p = ctx.planets[key]!;
+    p.frozen = true;
+    // à l'arrivée, la planète est au centre du hublot, à une distance qui lui donne la même taille apparente
+    p.approach.set(0.04, 0.12, -1).normalize().multiplyScalar(52 * p.radius / 21);
+    p.qAlign.setFromUnitVectors(p.home.clone().normalize(), p.approach.clone().normalize());
+    p.approachLocal.copy(p.approach).applyQuaternion(p.qAlign.clone().invert());
+  };
+  ctx.releasePlanet = (key) => { ctx.planets[key]!.frozen = false; };
+
+  /** la carte détaillée : fabriquée quand on s'approche, libérée au retour */
+  ctx.detailPlanet = (key) => {
+    const p = ctx.planets[key]!;
+    if (p.detail) return;
+    p.detail = paintedMap(ctx, key, 4096, 2048);
+    ctx.renderer.initTexture(p.detail);            // l'envoi à la carte graphique se fait ici, pas à l'affichage
+    p.mesh.material.uniforms.map.value = p.detail;
+  };
+  ctx.lightPlanet = (key) => {
+    const p = ctx.planets[key]!;
+    if (!p.detail) return;
+    p.mesh.material.uniforms.map.value = p.map;
+    p.detail.dispose(); p.detail = null;
   };
 }

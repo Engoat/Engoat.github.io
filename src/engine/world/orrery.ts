@@ -3,21 +3,24 @@ import { PROJECTS, type ProjectKey } from "../../content/profile";
 import type { Ctx } from "../types";
 import { mat } from "../util/textures";
 import { shadowy } from "../util/geometry";
-import { homeAngles, miniMap, planetName, planetRadius } from "./space";
+import { ORBIT_TILT, SPIN, planetName, planetRadius, skyMap } from "./space";
 
 /* La maquette : un planétaire qui sort de l'intérieur de la planche quand on appuie sur le
    gros bouton. Deux volets glissent, un mât chromé monte avec ses anneaux d'orbite, et des
-   bras portent une miniature par projet, peinte comme sa planète. Chaque miniature est placée
-   à l'angle où se trouve la vraie planète autour du vaisseau : la maquette montre le ciel.
+   bras portent une miniature par projet, peinte comme sa planète. C'est une réduction du vrai
+   ciel : au centre le soleil, chaque miniature sur la même orbite, à la même phase que la
+   planète du hublot, et qui tourne sur elle-même de la même façon.
    Tout ce qui bouge a ses propres matières (pas celles de la palette) : ces pièces ne sont
    pas cuites dans Blender avec le reste de la planche. */
 
 /** la baie, dans le repère de la planche */
 export const BAY = { x: 0, y: 0.045, z: 0.03, r: 0.098 };
 /** hauteur du plan des planètes au-dessus de la planche, et profondeur d'où elles montent */
-const HAUT = 0.17, PROFOND = 0.28;
+const HAUT = 0.15, PROFOND = 0.26;
+/** réduction : rayon d'orbite de la maquette (m) pour un rayon d'orbite du ciel */
+const ECHELLE = 0.00085;
 
-export interface Mini { key: ProjectKey; group: THREE.Group; hit: THREE.Mesh; sphere: THREE.Mesh; label: THREE.Mesh }
+export interface Mini { key: ProjectKey; group: THREE.Group; hit: THREE.Mesh; sphere: THREE.Mesh; label: THREE.Mesh; arm: THREE.Mesh }
 
 export function buildOrrery(ctx: Ctx) {
   const root = new THREE.Group();
@@ -36,7 +39,7 @@ export function buildOrrery(ctx: Ctx) {
   ring.position.z = 0.002;
   root.add(ring);
 
-  // les deux volets, qui glissent de part et d'autre
+  // les deux volets, qui glissent de part et d'autre puis s'enfoncent sous la planche
   const R = BAY.r + 0.0015;
   const half = (side: -1 | 1) => {
     const geo = new THREE.CylinderGeometry(R, R, 0.004, 48, 1, false, side === 1 ? 0 : Math.PI, Math.PI);
@@ -48,7 +51,7 @@ export function buildOrrery(ctx: Ctx) {
   };
   const shutters = [half(-1), half(1)];
 
-  /* ce qui monte : le mât, les anneaux, les bras et les miniatures */
+  /* ce qui monte : le mât, le soleil, les pistes d'orbite et les miniatures */
   const rise = new THREE.Group();
   rise.visible = false;
   root.add(rise);
@@ -61,47 +64,34 @@ export function buildOrrery(ctx: Ctx) {
     c.position.z = (z0 + z1) / 2;
     return c;
   };
-  /** une tige entre deux points */
-  const rod = (a: THREE.Vector3, b: THREE.Vector3, r: number, m: THREE.Material) => {
-    const d = b.clone().sub(a), geo = new THREE.CylinderGeometry(r, r, d.length(), 10);
-    const c = shadowy(new THREE.Mesh(geo, m));
-    c.position.copy(a).addScaledVector(d, 0.5);
-    c.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
-    return c;
-  };
 
   rise.add(post(0.026, 0, 0.016, dark));
   rise.add(post(0.0048, 0.014, HAUT, chrome));
-  const hub = shadowy(new THREE.Mesh(new THREE.SphereGeometry(0.017, 24, 16), chrome));
-  hub.position.z = HAUT;
-  rise.add(hub);
+  // au centre, le soleil (comme celui du hublot : blanc chaud)
+  const soleil = new THREE.Mesh(new THREE.SphereGeometry(0.019, 32, 20), new THREE.MeshBasicMaterial({ color: 0xffe4b0, toneMapped: false }));
+  soleil.position.z = HAUT;
+  rise.add(soleil);
 
-  // une piste d'orbite par couronne de planètes
-  const n = PROJECTS.length, couronnes = Math.ceil(n / 2);
-  const rayonDe = (i: number) => 0.105 + 0.04 * Math.floor(i / 2);
-  for (let c = 0; c < couronnes; c++) {
-    const piste = shadowy(new THREE.Mesh(new THREE.TorusGeometry(rayonDe(c * 2), 0.002, 8, 96), chrome));
-    piste.position.z = HAUT;
-    rise.add(piste);
-  }
-
-  // les bras restent à l'angle de la vraie planète ; seules les miniatures tournent sur elles-mêmes
-  const arms = new THREE.Group();
-  arms.position.z = HAUT;
-  rise.add(arms);
+  // le plan des orbites : le même que dans le ciel (peu de hauteur, beaucoup de profondeur)
+  const plan = new THREE.Group();
+  plan.position.z = HAUT;
+  plan.rotation.x = ORBIT_TILT;
+  rise.add(plan);
 
   const minis: Mini[] = [];
-  PROJECTS.forEach((p, i) => {
-    const { az, el } = homeAngles(p.key);
-    const A = THREE.MathUtils.degToRad(az), r = rayonDe(i), rp = planetRadius(p.key) * 0.0017;
-    // placée à l'angle de la vraie planète (0° = devant, vers le haut de la planche), un peu plus haute si elle l'est dans le ciel
-    const pos = new THREE.Vector3(Math.sin(A) * r, Math.cos(A) * r, (el - 8) * 0.002);
-    arms.add(rod(new THREE.Vector3(0, 0, 0), pos, 0.0024, chrome));
+  const tige = new THREE.CylinderGeometry(0.0024, 0.0024, 1, 10);
+  PROJECTS.forEach((p) => {
+    const planet = ctx.planet(p.key), rm = planet.orbitR * ECHELLE, rp = planetRadius(p.key) * 0.00055;
+    // la piste de cette orbite
+    const piste = shadowy(new THREE.Mesh(new THREE.TorusGeometry(rm, 0.002, 8, 96), chrome));
+    plan.add(piste);
+    // le bras, du soleil à la miniature (replacé à chaque image)
+    const arm = shadowy(new THREE.Mesh(tige, chrome));
+    plan.add(arm);
 
     const group = new THREE.Group();
-    group.position.copy(pos);
-    arms.add(group);
-    const sphere = shadowy(new THREE.Mesh(new THREE.SphereGeometry(rp, 48, 32), new THREE.MeshStandardMaterial({ map: miniMap(ctx, p.key), roughness: 0.7 })));
+    plan.add(group);
+    const sphere = shadowy(new THREE.Mesh(new THREE.SphereGeometry(rp, 48, 32), new THREE.MeshStandardMaterial({ map: skyMap(ctx, p.key), roughness: 0.7 })));
     const incline = new THREE.Group();
     incline.rotation.z = 0.4;                      // le pôle dans le plan de la maquette, un peu incliné : on voit l'équateur
     group.add(incline);
@@ -122,7 +112,7 @@ export function buildOrrery(ctx: Ctx) {
     group.add(hit);
     ctx.buttons["mini_" + p.key] = { key: "mini_" + p.key, kind: "pad", cap: hit };
     hit.userData.button = ctx.buttons["mini_" + p.key];
-    minis.push({ key: p.key, group, hit, sphere, label });
+    minis.push({ key: p.key, group, hit, sphere, label, arm });
   });
 
   // les pièces qui montent sont coupées au niveau de la planche : elles sortent de l'intérieur
@@ -144,8 +134,8 @@ export function buildOrrery(ctx: Ctx) {
     m.clippingPlanes = [plane]; m.clipShadows = true;
   });
 
-  const qp = new THREE.Quaternion();
-  /** à chaque image : volets, hauteur du mât, rotation, plaques tournées vers le pilote */
+  const qp = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0), d = new THREE.Vector3();
+  /** à chaque image : volets, hauteur du mât, miniatures à la phase des vraies planètes */
   function apply(shutter: number, up: number, dt: number, camera: THREE.Camera) {
     // les volets glissent, puis s'enfoncent sous la planche (coupés au niveau de sa surface)
     const enfonce = THREE.MathUtils.smoothstep(shutter, 0.55, 1);
@@ -155,7 +145,14 @@ export function buildOrrery(ctx: Ctx) {
     rise.position.z = -PROFOND * (1 - up);
     if (!rise.visible) return;
     for (const m of minis) {
-      m.sphere.rotation.y += dt * 0.35;
+      const p = ctx.planet(m.key), r = p.orbitR * ECHELLE;
+      // dans le plan de l'orbite : x vers la droite, y vers le fond (comme la profondeur du ciel)
+      m.group.position.set(r * Math.cos(p.phase), r * Math.sin(p.phase), 0);
+      d.copy(m.group.position);
+      m.arm.scale.y = d.length();
+      m.arm.position.copy(d).multiplyScalar(0.5);
+      m.arm.quaternion.setFromUnitVectors(Y, d.normalize());
+      m.sphere.rotation.y += dt * SPIN;
       m.label.parent!.getWorldQuaternion(qp);
       m.label.quaternion.copy(qp.invert()).multiply(camera.quaternion);
     }

@@ -54,13 +54,16 @@ export interface RestPose { pos: THREE.Vector3; rot: THREE.Euler; pose: PoseName
 
 export interface Planet {
   key: ProjectKey; name: string;
-  /** carte de la surface (libérée avec la planète) */
-  map: THREE.CanvasTexture;
   mesh: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>;
   shell: THREE.Mesh<THREE.SphereGeometry, THREE.ShaderMaterial>;
-  /** position au repos, et position d'arrivée au centre du hublot */
-  home: THREE.Vector3; approach: THREE.Vector3;
-  /** rotation de l'extérieur qui amène la planète face au hublot */
+  /** carte légère, portée au repos ; carte détaillée, fabriquée seulement pour la visite */
+  map: THREE.CanvasTexture; detail: THREE.CanvasTexture | null;
+  /** place actuelle sur l'orbite (repère de l'espace), et arrêt pendant la visite */
+  home: THREE.Vector3; frozen: boolean;
+  /** orbite autour du soleil : rayon, phase, vitesse angulaire */
+  orbitR: number; phase: number; omega: number;
+  /** à l'arrivée : position au centre du hublot, et rotation de l'extérieur qui l'y amène */
+  approach: THREE.Vector3;
   qAlign: THREE.Quaternion; approachLocal: THREE.Vector3;
   radius: number;
 }
@@ -84,10 +87,18 @@ export interface Ctx {
   M: Materials;
 
   space: THREE.Group;
-  /** planètes déjà fabriquées ; `planet(key)` fabrique à la demande, `releasePlanet(key)` libère */
+  /** toutes les planètes du ciel ; `planet(key)` en donne une */
   planets: Partial<Record<ProjectKey, Planet>>;
   planet(key: ProjectKey): Planet;
+  /** le système tourne : à appeler à chaque image */
+  systemUpdate(dt: number): void;
+  freezePlanet(key: ProjectKey): void;
   releasePlanet(key: ProjectKey): void;
+  detailPlanet(key: ProjectKey): void;
+  lightPlanet(key: ProjectKey): void;
+  /** le gros bouton cherche à attirer l'œil (maquette rentrée, vaisseau au repos) */
+  attract: boolean;
+  attractLeds: THREE.MeshStandardMaterial[];
   /** éclairage propre de l'interrupteur FEUX CABINE et de l'éjection, pour les trouver dans le noir */
   switchGlow: { labels: THREE.MeshStandardMaterial[]; leds: THREE.MeshStandardMaterial[] };
 

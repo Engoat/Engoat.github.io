@@ -1,11 +1,12 @@
 # Enzo Dylan — portfolio
 
-Un cockpit de vaisseau en 3D, vu depuis le siège du pilote. Les projets sont des planètes, qui tournent autour du vaisseau
-hors du hublot. Un gros bouton, au centre de la planche, fait sortir de l'intérieur une maquette
-(un planétaire) : une miniature par projet, placée à l'angle de la vraie planète. On touche une
-miniature, le vaisseau vire vers la planète, qui entre dans le hublot, et une visite présente
-l'application. Les planètes se fabriquent à la demande : ajouter un projet ne ralentit pas
-le chargement. Le dossier et le contact
+Un cockpit de vaisseau en 3D, vu depuis le siège du pilote. Les projets sont des planètes qu'on voit depuis le cockpit : elles tournent autour
+d'un soleil, devant le vaisseau, et sur elles-mêmes. Un gros bouton, au centre de la planche, fait
+sortir de l'intérieur une maquette (un planétaire) : la même chose en petit, avec le soleil au centre
+et une miniature par projet, à la même place sur son orbite que la vraie planète. On touche une
+miniature, ou la planète elle-même dans le hublot : le vaisseau vire, la planète s'arrête sur son
+orbite et grandit, et une visite présente l'application. Les planètes se voient avec une carte légère ;
+la carte détaillée n'est fabriquée qu'au moment de partir. Le dossier et le contact
 sortent de l'imprimante de bord. Le bouton ÉJECTION ouvre un portfolio classique, sans la 3D (accessible aussi par l'adresse `#classique`).
 
 En ligne : https://engoat.github.io/

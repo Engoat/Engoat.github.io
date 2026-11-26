@@ -52,6 +52,7 @@ export function createCommands(ctx: Ctx, slip: Slip, travel: Travel, orrery: Orr
   async function engage(target: ProjectKey) {
     await tearOpenSlip();
     if (travel.state.state === "home") {
+      ctx.detailPlanet(target);
       if (orrery.state.open) await pressButton(ctx, "mini_" + target);
       const b = ctx.buttons["planetes"];
       if (!b.kind) b.on = false;

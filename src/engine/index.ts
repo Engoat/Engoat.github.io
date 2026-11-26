@@ -133,6 +133,15 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
     const hit = ray.intersectObjects(caps, false).find((h) => h.object.visible);
     return hit ? hit.object.userData.button.key : null;
   }
+  // une planète du hublot, si rien du cockpit ne la cache (au repos seulement)
+  function pickPlanet(): ProjectKey | null {
+    if (travel.state.state !== "home") return null;
+    const meshes = Object.values(ctx.planets).map((p) => p.mesh);
+    const hit = ray.intersectObjects(meshes, false)[0];
+    if (!hit) return null;
+    const wall = ray.intersectObjects(blockers, false)[0];
+    return wall && wall.distance < hit.distance ? null : hit.object.userData.planet;
+  }
   // une miniature de la maquette (elles ne se touchent que maquette sortie, au repos)
   function pickMini(): ProjectKey | null {
     if (travel.state.state !== "home" || !orrery.state.open) return null;
@@ -149,15 +158,18 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
     aim(e);
     const mini = pickMini();
     orrery.hover(mini);
-    canvas.classList.toggle("hot", pickNext() || !!pickButton() || mini !== null);
+    // la carte détaillée de la planète survolée se prépare à l'avance : le départ ne saccade pas
+    if (mini && mini !== warmed) { warmed = mini; setTimeout(() => { if (travel.state.state === "home") ctx.detailPlanet(mini); }, 150); }
+    canvas.classList.toggle("hot", pickNext() || !!pickButton() || mini !== null || !!pickPlanet());
   };
+  let warmed: ProjectKey | null = null;
   const onClick = (e: MouseEvent) => {
     aim(e);
     if (pickNext()) { director.next(); return; }
     const key = pickButton();
     if (key && !key.startsWith("mini_")) { commands.act(key); return; }
-    const mini = pickMini();
-    if (mini) commands.act("engage_" + mini);
+    const target = pickMini() ?? pickPlanet();
+    if (target) commands.act("engage_" + target);
   };
   canvas.addEventListener("pointermove", onMove);
   canvas.addEventListener("click", onClick);
@@ -187,6 +199,8 @@ export async function createCockpit(canvas: HTMLCanvasElement, ui: UiBridge): Pr
     ctx.anim.step(dt);
     updatePanel(ctx, t, dt);
     orrery.update(dt);
+    // le gros bouton attire l'œil quand la maquette est rentrée et que le vaisseau est au repos
+    ctx.attract = !orrery.state.open && !orrery.state.busy && travel.state.state === "home";
     travel.update(dt);
     head.update(t, dt, travel.state.thrust);
     updateLights(ctx, dt);
